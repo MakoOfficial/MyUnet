@@ -105,12 +105,12 @@ def show(images, y, savename):
 
 
 
-def main(chkpt, dataset_dir, save_path):
+def main(chkpt, dataset_dir, save_path, input_size):
     model = torch.load(chkpt, map_location='cpu')
     model.eval()
 
     trans = transforms.Compose([
-        resize(224),
+        resize(input_size),
         # normal(),
         transforms.Grayscale(),
         transforms.ToTensor(),
@@ -130,8 +130,8 @@ def main(chkpt, dataset_dir, save_path):
 
     show(images, y_hat, save_path)
 
-chkpt = "checkpoint\checkpoint_ori_200.pth"
-data_dir = "../archive/masked_crop/val/a"
-save_path = "./output/masked_ori"
-
-main(chkpt, data_dir, save_path)
+chkpt = "checkpoint\checkpoint_canny_200.pth"
+data_dir = "../archive/masked_crop/canny/val"
+save_path = "./output/masked_canny.png"
+input_size = 512
+main(chkpt, data_dir, save_path, input_size)

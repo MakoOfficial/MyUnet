@@ -1,6 +1,7 @@
 import torch.utils.data as data
 import os
-from model import UNet
+# from model import UNet
+from model_withoutConnection import UNet
 import torch.optim as optim
 from torchvision import transforms
 import time
