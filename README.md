@@ -78,9 +78,9 @@ python pretrain.py \
 # run demo ori
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcut/checkpoint_ori_200.pth
+    --chkpt checkpoint/shortcutthree/checkpoint_ori_200.pth
     --data_path ../archive/masked_crop/val/a
-    --save_path ./output/shortcut/masked_ori.png
+    --save_path ./output/shortcutthree/masked_ori.png
     --input_size 512
 ```
 
@@ -96,9 +96,9 @@ python demo.py
 # ori2canny
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcut/checkpoint_ori_200.pth
+    --chkpt checkpoint/shortcutthree/checkpoint_ori_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/shortcut/ori2canny.png
+    --save_path ./output/shortcutthree/ori2canny.png
     --input_size 512
 ```
 

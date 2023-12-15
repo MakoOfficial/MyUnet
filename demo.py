@@ -101,13 +101,15 @@ def show(images, y, savename):
 
     plt.savefig(savename)
 
-    plt.show()
+    # plt.show()
 
 
 
 def main(args):
+    print(f"load model {args.chkpt}")
     model = torch.load(args.chkpt, map_location='cpu')
     model.eval()
+    print(f"model :{model}")
 
     trans = transforms.Compose([
         resize(args.input_size),
@@ -127,6 +129,11 @@ def main(args):
 
     y_hat = y_hat.permute(0, 2, 3, 1)
     images = input.permute(0, 2, 3, 1)
+
+    save_dirs = os.path.dirname(args.save_path)
+    if not os.path.exists(save_dirs):
+        print(f"create dirs {save_dirs}")
+        os.makedirs(save_dirs)
 
     show(images, y_hat, args.save_path)
 

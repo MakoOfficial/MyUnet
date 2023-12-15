@@ -61,9 +61,15 @@ class UnetDataset(data.Dataset):
 
 def get_Net(args):
     if args.use_canny:
-        return model.UNet_canny()
+        print("use UNet_canny")
+        net = model.UNet_canny()
+        print(net)
+        return net
     else:
-        return model.UNet_ori()
+        print("use UNet_ori")
+        net = model.UNet_ori()
+        print(net)
+        return net
 
 
 def train(args):
