@@ -2,6 +2,7 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser('Unet pre-training script', add_help=False)
+    parser.add_argument('--use_canny', default=False, type=bool)
     parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--save_ckpt_freq', default=200, type=int)
@@ -29,4 +30,15 @@ def get_args():
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
     
+    return parser.parse_args()
+
+
+def get_demo_args():
+    parser = argparse.ArgumentParser('Unet pre-training script', add_help=False)
+    parser.add_argument('--data_path', default="../archive/masked_crop/canny/val", type=str)
+    parser.add_argument('--save_path', default="./output/masked_canny.png", type=str)
+    parser.add_argument('--chkpt', default="checkpoint\checkpoint_ori_200.pth", type=str)
+    parser.add_argument('--input_size', default=512, type=int,
+                        help='images input size for backbone')
+
     return parser.parse_args()

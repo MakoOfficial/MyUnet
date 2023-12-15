@@ -1,7 +1,8 @@
 import torch.utils.data as data
 import os
-# from model import UNet
-from model_withoutConnection import UNet
+
+import model
+from model import UNet
 import torch.optim as optim
 from torchvision import transforms
 import time
@@ -11,8 +12,10 @@ import setting
 from PIL import Image, ImageOps
 from torch.optim.lr_scheduler import StepLR
 
+
 class resize:
     """resize the pic, and remain the ratio,use 0 padding """
+
     def __init__(self, reshape_size=224):
         self.reshape_size = reshape_size
         pass
@@ -26,7 +29,7 @@ class resize:
         padding = (delta_w // 2, delta_h // 2, delta_w - (delta_w // 2), delta_h - (delta_h // 2))
         img = ImageOps.expand(img, padding)
         return img
-    
+
 
 class UnetDataset(data.Dataset):
     def __init__(self, root_dir, transform=None):  # __init__是初始化该类的一些基础参数
@@ -57,8 +60,15 @@ class UnetDataset(data.Dataset):
         return self.list[index]
 
 
+def get_Net(args):
+    if args.use_canny:
+        return model.UNet_canny()
+    else:
+        return model.UNet_ori()
+
+
 def train(args):
-    net = UNet()
+    net = get_Net(args)
     net.cuda()
     net.train()
     # 在多个GPU上设置模型
@@ -109,6 +119,7 @@ def train(args):
         scheduler.step()
     torch.save(net, args.save_path)
 
-#=====================================================================
-args = setting.get_args()
-train(args)
+
+# =====================================================================
+opts = setting.get_args()
+train(opts)

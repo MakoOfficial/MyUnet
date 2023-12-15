@@ -105,33 +105,32 @@ def show(images, y, savename):
 
 
 
-def main(chkpt, dataset_dir, save_path, input_size):
-    model = torch.load(chkpt, map_location='cpu')
+def main(args):
+    model = torch.load(args.chkpt, map_location='cpu')
     model.eval()
 
     trans = transforms.Compose([
-        resize(input_size),
+        resize(args.input_size),
         # normal(),
         transforms.Grayscale(),
         transforms.ToTensor(),
     ])
-    dataset = UnetDataset(dataset_dir, transform=trans)
+    dataset = UnetDataset(args.data_path, transform=trans)
 
     input = dataset.__getitem__([0, 1, 2, 3, 4])
 
     y_hat = model(input)
     y_hat = y_hat.detach()
     loss_fn = nn.MSELoss()
-    print(f"model high loss is: {loss_fn(input, y_hat)}")
+    print(f"model loss is: {loss_fn(input, y_hat)}")
 
 
     y_hat = y_hat.permute(0, 2, 3, 1)
     images = input.permute(0, 2, 3, 1)
 
-    show(images, y_hat, save_path)
+    show(images, y_hat, args.save_path)
 
-chkpt = "checkpoint\checkpoint_canny_200.pth"
-data_dir = "../archive/masked_crop/canny/val"
-save_path = "./output/masked_canny.png"
-input_size = 512
-main(chkpt, data_dir, save_path, input_size)
+from setting import  get_demo_args
+
+args = get_demo_args()
+main(args)
