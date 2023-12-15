@@ -2,7 +2,7 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser('Unet pre-training script', add_help=False)
-    parser.add_argument('--use_canny', default=False, type=bool)
+    parser.add_argument('--use_canny', default=0, type=int)
     parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--save_ckpt_freq', default=200, type=int)

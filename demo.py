@@ -106,7 +106,6 @@ def show(images, y, savename):
 
 
 def main(args):
-    print(f"load model {args.chkpt}")
     model = torch.load(args.chkpt, map_location='cpu')
     model.eval()
     print(f"model :{model}")

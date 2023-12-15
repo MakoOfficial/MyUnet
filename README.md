@@ -1,7 +1,7 @@
 # Run
 ```bash
 python pretrain.py \
-        --use_canny False \
+        --use_canny 0 \
         --data_path ../maske/train/ \
         --save_pth  ./checkpoint/checkpoint_ori_200.pth \
         --batch_size 20 \
@@ -16,7 +16,7 @@ python pretrain.py \
 # local run ori
 ```bash
 python pretrain.py
-        --use_canny False
+        --use_canny 0
         --data_path ../archive/masked_crop/train/1
         --save_path  ./checkpoint/checkpoint_ori_200.pth
         --batch_size 8
@@ -31,7 +31,7 @@ python pretrain.py
 # local run canny
 ```bash
 python pretrain.py
-        --use_canny True
+        --use_canny 1
         --data_path ../archive/masked_crop/canny/train
         --save_path  ./checkpoint/checkpoint_canny_200.pth
         --batch_size 8
@@ -46,7 +46,7 @@ python pretrain.py
 # server run ori
 ```bash
 python pretrain.py \
-        --use_canny False \
+        --use_canny 0 \
         --data_path ../masked/train/1 \
         --save_path  ./checkpoint/checkpoint_ori_200.pth \
         --batch_size 8 \
@@ -61,7 +61,7 @@ python pretrain.py \
 # server run canny
 ```bash
 python pretrain.py \
-        --use_canny True \
+        --use_canny 1 \
         --data_path ../canny \
         --save_path  ./checkpoint/checkpoint_canny_200.pth \
         --batch_size 8 \
@@ -87,9 +87,9 @@ python demo.py
 # run demo canny
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcut/checkpoint_canny_200.pth
+    --chkpt checkpoint/shortcutthree/checkpoint_canny_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/shortcut/masked_canny.png
+    --save_path ./output/shortcutthree/masked_canny.png
     --input_size 512
 ```
 
