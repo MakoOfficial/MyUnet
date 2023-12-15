@@ -78,26 +78,35 @@ python pretrain.py \
 # run demo ori
 ```bash
 python demo.py
-    --chkpt checkpoint\checkpoint_ori_200.pth
+    --chkpt checkpoint/shortcut/checkpoint_ori_200.pth
     --data_path ../archive/masked_crop/val/a
-    --save_path ./output/masked_ori.png
+    --save_path ./output/shortcut/masked_ori.png
     --input_size 512
 ```
 
 # run demo canny
 ```bash
 python demo.py
-    --chkpt checkpoint\checkpoint_canny_200.pth
+    --chkpt checkpoint/shortcut/checkpoint_canny_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/masked_canny.png
+    --save_path ./output/shortcut/masked_canny.png
     --input_size 512
 ```
 
-# play
+# ori2canny
 ```bash
 python demo.py
-    --chkpt checkpoint\checkpoint_ori_200.pth
+    --chkpt checkpoint/shortcut/checkpoint_ori_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/ori2canny.png
+    --save_path ./output/shortcut/ori2canny.png
+    --input_size 512
+```
+
+# canny2ori
+```bash
+python demo.py
+    --chkpt checkpoint/shortcut/checkpoint_canny_200.pth
+    --data_path ../archive/masked_crop/val/a
+    --save_path ./output/shortcut/canny2ori.png
     --input_size 512
 ```

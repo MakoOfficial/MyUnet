@@ -2,7 +2,6 @@ import torch.utils.data as data
 import os
 
 import model
-from model import UNet
 import torch.optim as optim
 from torchvision import transforms
 import time
@@ -68,6 +67,9 @@ def get_Net(args):
 
 
 def train(args):
+
+    torch.manual_seed(args.seed)
+
     net = get_Net(args)
     net.cuda()
     net.train()

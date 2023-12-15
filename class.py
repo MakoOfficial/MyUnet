@@ -4,22 +4,15 @@ import os
 from torch.utils import data
 from PIL import Image
 
-checkpoint_ori = torch.load("./checkpoint/server/checkpoint_ori_200.pth")
-checkpoint_canny = torch.load("./checkpoint/server/checkpoint_canny_200.pth")
-
-classifer = model.classifer(checkpoint_ori, checkpoint_canny)
-
-# print(classifer)
-for name,parameters in classifer.named_parameters():
-        print(name,':',parameters.size())
-        print('-->grad_requirs:', parameters.requires_grad)
 
 class UnetDataset(data.Dataset):
-    def __init__(self, root_dir, transform=None):  # __init__是初始化该类的一些基础参数
+    def __init__(self, df, root_dir, transform=None):  # __init__是初始化该类的一些基础参数
         self.root_dir = root_dir  # 文件目录
         self.transform = transform  # 变换
         self.images = os.listdir(self.root_dir)  # 目录里的所有文件
+        self.df = df    # load the dataframe from cvd file
         self.list = []
+        self.label = []
         for i in range(len(self.images)):
             print(i)
             self.list.append(self.read_a_pic(i))
@@ -39,9 +32,28 @@ class UnetDataset(data.Dataset):
         # return (self.transform(img), self.transform(label))
         return self.transform(img)
 
+    def get_label(self, index):
+        image_id = self.images[index]
+        row = self.df[self.df['id'] == image_id]
+        boneage = row['boneage']
+        male = row['male']
+
+
     def __getitem__(self, index):
         return self.list[index]
 
 
 def main():
+    checkpoint_ori = torch.load("./checkpoint/server/checkpoint_ori_200.pth")
+    checkpoint_canny = torch.load("./checkpoint/server/checkpoint_canny_200.pth")
+
+    classifer = model.classifer(checkpoint_ori, checkpoint_canny)
+
+    # print(classifer)
+    for name, parameters in classifer.named_parameters():
+        print(name, ':', parameters.size())
+        print('-->grad_requirs:', parameters.requires_grad)
+
+
+
     return
