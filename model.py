@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from vit import Vit
 
 
 def add_conv_stage(dim_in, dim_out, kernel_size=3, stride=1, padding=1, bias=True):
@@ -170,33 +172,71 @@ class UNet_canny(nn.Module):
 
 
 
+
+
+class Ori_Embedding(nn.Module):
+
+    def __init__(self, backbone):
+        super(Ori_Embedding, self).__init__()
+        self.feature_extract = nn.ModuleList([])
+        self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.conv2)
+        self.feature_extract.append(backbone.conv3)
+        self.feature_extract.append(backbone.conv4)
+        self.feature_extract.append(backbone.conv5)
+
+        for param in self.feature_extract.parameters():
+            param.requires_grad = False
+
+        # add the patch embedding
+        self.Patch_Embding = nn.Sequential(
+            nn.Conv2d(512, 1024, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=16)
+        )
+
+    def forward(self, input):
+        x = input
+        for module in self.feature_extract:
+            x = module(x)
+        # x.shape = [B, 512, 32, 32]
+        low_module = x
+        low_module = self.Patch_Embding(low_module)
+        low_module = torch.squeeze(low_module)
+
+        # low_module.shape = [B, 1024]
+        return low_module
+
+class Canny_Embedding(nn.Module):
+
+    def __init__(self, backbone) -> None:
+        super(Canny_Embedding, self).__init__()
+        self.feature_extract = nn.ModuleList([])
+        self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.conv2)
+
+        for param in self.feature_extract.parameters():
+            param.requires_grad = False
+
+        self.vit = Vit(input_size=256, patch_size=32, in_chans=64, embed_dim=1024, depth=6,
+                       num_heads=12)
+
+    def forward(self, input):
+        feature = input
+        for module in self.feature_extract:
+            feature = module(feature)
+
+        high_module = feature
+        high_module = self.vit(high_module)
+        # high_module.shape = [B, 1024]
+        return high_module
+
+
+
 class classifer(nn.Module):
     def __init__(self, backbone_ori, backbone_canny):
         super(classifer, self).__init__()
-        self.feature_extract_ori = nn.ModuleList()
-        self.feature_extract_ori.append(backbone_ori.conv1)
-        self.feature_extract_ori.append(backbone_ori.conv2)
-        self.feature_extract_ori.append(backbone_ori.conv3)
-        self.feature_extract_ori.append(backbone_ori.conv4)
-        self.feature_extract_ori.append(backbone_ori.conv5)
-
-        self.feature_extract_canny = nn.ModuleList()
-        self.feature_extract_canny.append(backbone_canny.conv1)
-        self.feature_extract_canny.append(backbone_canny.conv2)
-        self.feature_extract_canny.append(backbone_canny.conv3)
-        self.feature_extract_canny.append(backbone_canny.conv4)
-        self.feature_extract_canny.append(backbone_canny.conv5)
-
-        for param in self.feature_extract_ori.parameters():
-            param.requires_grad = False
-        for param in self.feature_extract_canny.parameters():
-            param.requires_grad = False
-
-        self.fusion = nn.Sequential(
-            nn.Linear(1024, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU()
-        )
+        self.feature_extract_ori = Ori_Embedding(backbone_ori)
+        self.feature_extract_canny = Canny_Embedding(backbone_canny)
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
@@ -205,17 +245,24 @@ class classifer(nn.Module):
         )
 
         self.MLP = nn.Sequential(
-            nn.Linear(1024+32, 512),
+            nn.Linear(1024+1024+32, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )
 
     def forward(self, image, gender):
-        feature_ori = self.feature_extract_ori(image)
-        feature_canny = self.feature_extract_canny(image)
+        feature_ori = image.clone()
+        feature_canny = image.clone()
+        feature_ori = self.feature_extract_ori(feature_ori)
+        feature_canny = self.feature_extract_canny(feature_canny)
 
         gender_encode = self.gender_encoder(gender)
 
+        print(feature_ori.shape, feature_canny.shape, gender_encode.shape)
         feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 512+512+32
+        print(feature_fusion.shape)
         return self.MLP(feature_fusion)

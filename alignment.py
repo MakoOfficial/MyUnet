@@ -1,11 +1,11 @@
 import torch.utils.data as data
-
 import torch.optim as optim
 from torchvision import transforms
 import time
 import torch
 
 from torch.optim.lr_scheduler import StepLR
+
 from utils import datasets, func, setting
 
 
@@ -13,9 +13,12 @@ def train(args):
 
     torch.manual_seed(args.seed)
 
-    net = func.get_Net(args)
-    net.cuda()
-    net.train()
+    net_Ori, net_Canny = func.get_align()
+    net_Ori.cuda()
+    net_Canny.cuda()
+    net_Ori.eval()
+    net_Canny.eval()
+
 
     trans = transforms.Compose([
         transforms.RandomHorizontalFlip(),

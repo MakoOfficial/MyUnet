@@ -136,7 +136,7 @@ def main(args):
 
     show(images, y_hat, args.save_path)
 
-from setting import  get_demo_args
+from utils.setting import  get_demo_args
 
 args = get_demo_args()
 main(args)

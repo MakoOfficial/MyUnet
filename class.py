@@ -1,59 +1,62 @@
+import numpy as np
 import torch
 import model
 import os
 from torch.utils import data
 from PIL import Image
+import pandas as pd
+from torchvision import transforms
+from PIL import ImageOps
+from torch import nn
+from torch.optim import Adam
+from utils import datasets
 
+from torchkeras import summary
 
-class UnetDataset(data.Dataset):
-    def __init__(self, df, root_dir, transform=None):  # __init__是初始化该类的一些基础参数
-        self.root_dir = root_dir  # 文件目录
-        self.transform = transform  # 变换
-        self.images = os.listdir(self.root_dir)  # 目录里的所有文件
-        self.df = df    # load the dataframe from cvd file
-        self.list = []
-        self.label = []
-        for i in range(len(self.images)):
-            print(i)
-            self.list.append(self.read_a_pic(i))
-        # tuple_1= tuple(self.list)
-        # self.imglist = torch.stack(tuple_1)
-
-    def __len__(self):
-        return len(self.images)
-
-    def read_a_pic(self, index):
-        image_index = self.images[index]
-        img_path = os.path.join(self.root_dir, image_index)
-        # label_path = os.path.join(self.root_dir, "label", image_index)
-
-        img = Image.open(img_path)
-        # label = Image.open(label_path)
-        # return (self.transform(img), self.transform(label))
-        return self.transform(img)
-
-    def get_label(self, index):
-        image_id = self.images[index]
-        row = self.df[self.df['id'] == image_id]
-        boneage = row['boneage']
-        male = row['male']
-
-
-    def __getitem__(self, index):
-        return self.list[index]
-
+torch.manual_seed(0)
 
 def main():
-    checkpoint_ori = torch.load("./checkpoint/server/checkpoint_ori_200.pth")
-    checkpoint_canny = torch.load("./checkpoint/server/checkpoint_canny_200.pth")
+    checkpoint_ori = torch.load("./checkpoint/shortcut/checkpoint_ori_200.pth")
+    checkpoint_canny = torch.load("./checkpoint/shortcut/checkpoint_canny_200.pth")
 
     classifer = model.classifer(checkpoint_ori, checkpoint_canny)
+    print(summary(classifer, input_shape=(15,)))
 
-    # print(classifer)
-    for name, parameters in classifer.named_parameters():
-        print(name, ':', parameters.size())
-        print('-->grad_requirs:', parameters.requires_grad)
+    df = pd.read_csv('../archive/boneage-training-dataset.csv')
+    data_dir = "../archive/masked_crop/train/1"
+    trans = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        datasets.resize(512),
+        transforms.Grayscale(),
+        transforms.ToTensor(),
+    ])
 
+    train_dataset = datasets.ClassDataset(df, data_dir, trans)
+    train_loader = data.dataloader.DataLoader(
+        dataset=train_dataset,
+        batch_size=5
+    )
 
+    loss_func = nn.L1Loss(reduction="sum")
+    total_loss = 0.
+    length = train_dataset.__len__()
+    epochs = 10
+    optimizer = Adam(classifer.parameters(), lr=1e-4, weight_decay=1e-5)
+    for epoch in range(epochs):
+        classifer.cuda()
+        for idx, patch in enumerate(train_loader):
+            images = patch[0].cuda()
+            boneage = patch[1].cuda()
+            male = patch[2].cuda()
+            optimizer.zero_grad()
 
-    return
+        #     output = classifer(images, male)
+        #     loss = loss_func(output, boneage)
+        #     loss.backward()
+        #     optimizer.step()
+        #     total_loss += loss.item()
+        # print(f'epoch {epoch+1}: loss is {total_loss/length}')
+
+    return None
+
+main()
