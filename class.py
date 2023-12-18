@@ -3,6 +3,7 @@ import torch
 import model
 import os
 from torch.utils import data
+from torch.optim.lr_scheduler import StepLR
 from PIL import Image
 import pandas as pd
 from torchvision import transforms
@@ -21,8 +22,8 @@ def main():
     classifer = model.classifer(checkpoint_ori, checkpoint_canny)
 
     df = pd.read_csv('../archive/boneage-training-dataset.csv')
-    ori_dir = "../archive/masked_1K_train/ori"
-    canny_dir = "../archive/masked_1K_train/canny"
+    ori_dir = "../masked_1K_train/ori"
+    canny_dir = "../masked_1K_train/canny"
     trans = transforms.Compose([
         transforms.RandomHorizontalFlip(),
         # datasets.resize(512),
@@ -37,19 +38,21 @@ def main():
 
     train_loader = data.dataloader.DataLoader(
         dataset=train_dataset,
-        batch_size=2,
+        batch_size=64,
         sampler=sampler,
         drop_last=True
     )
 
 
     loss_func = nn.L1Loss(reduction="sum")
-    total_loss = 0.
     length = train_dataset.__len__()
-    epochs = 2
-    optimizer = Adam(classifer.parameters(), lr=1e-4, weight_decay=1e-5)
+    epochs = 100
+    optimizer = Adam(classifer.parameters(), lr=1e-2, weight_decay=1e-5)
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+    count = 0
     for epoch in range(epochs):
         classifer.cuda()
+        total_loss = 0.
         for idx, patch in enumerate(train_loader):
             images = patch[0].cuda()
             cannys = patch[1].cuda()
@@ -63,7 +66,9 @@ def main():
             optimizer.step()
             total_loss += loss.item()
         print(f'epoch {epoch+1}: loss is {total_loss/length}')
-
+        if int((epoch+1)%50) == 0:
+            torch.save(classifer, f'classifer{count}.pth')
+            count += 1
     return None
 
 

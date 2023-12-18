@@ -136,9 +136,7 @@ class Vit(nn.Module):
 
 
     def forward(self, x):
-        print(f"2:{x.shape}")
         x = self.patch_embed(x)
-        print(f"3:{x.shape}")
         x = x + self.pos_embed.type_as(x).to(x.device).clone().detach()
         for blk in self.blocks:
             x = blk(x)

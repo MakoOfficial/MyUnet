@@ -214,20 +214,20 @@ class Ori_Embedding(nn.Module):
         x = input
         for module in self.feature_extract:
             x = module(x)
-        print(f"After Ori_pretrain's shape: {x.shape}, and it's required [B, 512, 32, 32]")
+        # print(f"After Ori_pretrain's shape: {x.shape}, and it's required [B, 512, 32, 32]")
         # x.shape = [B, 512, 32, 32]
         low_module = x
         # low_module = self.Patch_Embding(low_module)
         low_module = F.relu(self.downSample(low_module)+self.res(low_module))
         low_module = F.adaptive_avg_pool2d(low_module, 1)
         low_module = torch.squeeze(low_module)
-        print(f"After Ori_Embed's shape: {low_module.shape}, and it's required [B, 1024]")
+        # print(f"After Ori_Embed's shape: {low_module.shape}, and it's required [B, 1024]")
         # low_module.shape = [B, 1024]
         return low_module
 
 class Canny_Embedding(nn.Module):
 
-    def __init__(self, backbone) -> None:
+    def __init__(self, backbone):
         super(Canny_Embedding, self).__init__()
         self.feature_extract = nn.ModuleList([])
         self.feature_extract.append(backbone.conv1)
@@ -246,10 +246,10 @@ class Canny_Embedding(nn.Module):
             feature = module(feature)
 
         high_module = feature
-        print(f"After Canny_pretrain's shape: {high_module.shape}, and it's required [B, 64, 256, 256]")
+        # print(f"After Canny_pretrain's shape: {high_module.shape}, and it's required [B, 64, 256, 256]")
         high_module = self.vit(high_module)
         # high_module.shape = [B, 1024]
-        print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 1024]")
+        # print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 1024]")
         return high_module
 
 
@@ -284,7 +284,7 @@ class classifer(nn.Module):
 
         gender_encode = self.gender_encoder(gender)
 
-        print(feature_ori.shape, feature_canny.shape, gender_encode.shape)
+        # print(feature_ori.shape, feature_canny.shape, gender_encode.shape)
         feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 512+512+32
-        print(feature_fusion.shape)
+        # print(feature_fusion.shape)
         return self.MLP(feature_fusion)
