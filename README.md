@@ -110,3 +110,17 @@ python demo.py
     --save_path ./output/shortcut/canny2ori.png
     --input_size 512
 ```
+
+# run class.py
+```bash
+python class.py \
+    --batch_size 80 \
+    --epochs 400 \
+    --save_ckpt_freq 50 \
+    --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
+    --lr 1e-2 \
+    --weight_decay 1e-5 \
+    --step_size 30 \
+    --gamma  0.5
+```
