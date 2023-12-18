@@ -9,14 +9,21 @@ from torch import nn
 from torch.optim import Adam
 from utils import datasets
 from utils.setting import get_class_args
+from utils.func import print
 
 
 def main(args):
+    print(args)
     torch.manual_seed(args.seed)
+    print(f'Set manual random seed: {args.seed}')
     checkpoint_ori = torch.load(args.ori_ckpt_path)
+    print(f'Load MyUnet_Ori from {args.ori_ckpt_path}')
     checkpoint_canny = torch.load(args.canny_ckpt_path)
+    print(f'Load MyUnet_Canny from {args.canny_ckpt_path}')
 
     classifer = model.classifer(checkpoint_ori, checkpoint_canny)
+    print(f'Model:\n{classifer}')
+    print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     df = pd.read_csv(args.csv_path)
     train_ori_dir = args.ori_train_path
@@ -35,12 +42,11 @@ def main(args):
     ])
 
     train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir, transform=train_trans)
-    print(train_dataset)
+    print(f'Training dataset info:\n{train_dataset}')
     sampler = torch.utils.data.RandomSampler(data_source=train_dataset)
-    print(sampler)
 
     val_dataset = datasets.ClassDataset(df=df, ori_dir=val_ori_dir, canny_dir=val_canny_dir, transform=val_trans)
-    print(val_dataset)
+    print(f'Valid dataset info:\n{val_dataset}')
 
     train_loader = data.dataloader.DataLoader(
         dataset=train_dataset,
@@ -56,11 +62,23 @@ def main(args):
         drop_last=False
     )
 
+    num_training_steps_per_epoch = len(train_dataset) // args.batch_size
+
+    print(f"LR = {args.lr}")
+    print(f"Batch size = {args.batch_size}")
+    print(f"Number of training steps = {num_training_steps_per_epoch}")
+    print(f"Number of training examples per epoch = {num_training_steps_per_epoch*args.batch_size}")
+
     loss_func = nn.L1Loss(reduction="sum")
     train_length = train_dataset.__len__()
     epochs = args.epochs
     optimizer = Adam(classifer.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+    print("Use step level LR & WD scheduler!")
     scheduler = StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+    print(f'Scheduler:\n{scheduler}')
+
+
     for epoch in range(epochs):
         classifer.cuda()
         total_loss = 0.
