@@ -59,5 +59,5 @@ def eval_func(net, val_loader):
             val_loss += loss.item()
             val_length += patch_len
 
-    print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
+    # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length
