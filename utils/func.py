@@ -1,5 +1,7 @@
 import model
 import os
+import torch
+from torch import nn
 
 def get_Net(args):
     if args.use_canny:
@@ -37,3 +39,25 @@ def print(*arg):
     log_name = 'log.txt'
     filename = os.path.join(output_dir, log_name)
     rewrite_print(*arg, file=open(filename, "a"))
+
+def eval_func(net, val_loader):
+    # valid process
+    net.eval()
+    val_loss = 0.
+    val_length = 0.
+    loss_func = nn.L1Loss(reduction="sum")
+    with torch.no_grad():
+        for idx, patch in enumerate(val_loader):
+            patch_len = patch[0].shape[0]
+            images = patch[0].cuda()
+            cannys = patch[1].cuda()
+            boneage = patch[2].cuda()
+            male = patch[3].cuda()
+            output = net(images, cannys, male)
+
+            loss = loss_func(output, boneage)
+            val_loss += loss.item()
+            val_length += patch_len
+
+    print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
+    return val_loss / val_length

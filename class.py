@@ -9,7 +9,7 @@ from torch import nn
 from torch.optim import Adam
 from utils import datasets
 from utils.setting import get_class_args
-from utils.func import print
+from utils.func import print, eval_func
 
 
 def main(args):
@@ -95,25 +95,8 @@ def main(args):
             optimizer.step()
             total_loss += loss.item()
 
-        # valid process
-        classifer.eval()
-        val_loss = 0.
-        val_length = 0.
-        with torch.no_grad():
-            for idx, patch in enumerate(val_loader):
-                patch_len = patch[0].shape[0]
-                images = patch[0].cuda()
-                cannys = patch[1].cuda()
-                boneage = patch[2].cuda()
-                male = patch[3].cuda()
-                output = classifer(images, cannys, male)
-
-                loss = loss_func(output, boneage)
-                val_loss += loss.item()
-                val_length += patch_len
-
         print(f'epoch {epoch+1}: training loss: {round(total_loss/train_length, 3)}, '
-              f'valid loss: {round(val_loss/val_length, 3)}, lr:{optimizer.param_groups[0]["lr"]}')
+              f'valid loss: {round(eval_func(classifer, val_loader), 3)}, lr:{optimizer.param_groups[0]["lr"]}')
         scheduler.step()
 
         if int((epoch+1) % args.save_ckpt_freq) == 0:

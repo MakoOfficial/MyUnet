@@ -54,6 +54,7 @@ class UnetDataset(data.Dataset):
     def __repr__(self):
         repr = "(DatasetsForUnet,\n"
         repr += "  transform = %s,\n" % str(self.transform)
+        repr += "  len = %s,\n" % str(self.__len__())
         repr += ")"
         return repr
 
@@ -71,7 +72,7 @@ class ClassDataset(data.Dataset):
         self.male = []
         # print(type(self.df['id'][0]))
         for i in range(len(self.idList)):
-            print(i)
+            # print(i)
             self.ori.append(self.read_a_ori_pic(i))
             self.canny.append(self.read_a_canny_pic(i))
             age, male = self.get_label(i)
@@ -105,7 +106,7 @@ class ClassDataset(data.Dataset):
 
     def get_label(self, index):
         image_index = self.idList[index]
-        print(f"image_id: {image_index}")
+        # print(f"image_id: {image_index}")
         image_id = image_index.split('.')[0]
         row = self.df[self.df['id'] == int(image_id)]
         boneage = np.array(row['boneage'])
@@ -117,7 +118,8 @@ class ClassDataset(data.Dataset):
         return self.ori[index], self.canny[index], self.age[index], self.male[index]
 
     def __repr__(self):
-        repr = "(DatasetsForClassifer,\n"
+        repr = "(DatasetsForUnet,\n"
         repr += "  transform = %s,\n" % str(self.transform)
+        repr += "  len = %s,\n" % str(self.__len__())
         repr += ")"
         return repr
