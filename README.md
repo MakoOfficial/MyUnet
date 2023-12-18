@@ -17,8 +17,8 @@ python pretrain.py \
 ```bash
 python pretrain.py
         --use_canny 0
-        --data_path ../archive/masked_crop/train/1
-        --save_path  ./checkpoint/checkpoint_ori_200.pth
+        --data_path ../archive/masked_1K_train/ori
+        --save_path  ./checkpoint/masked_1K_ori_200.pth
         --batch_size 8
         --epochs 200
         --save_ckpt_freq 200
@@ -32,8 +32,8 @@ python pretrain.py
 ```bash
 python pretrain.py
         --use_canny 1
-        --data_path ../archive/masked_crop/canny/train
-        --save_path  ./checkpoint/checkpoint_canny_200.pth
+        --data_path ../archive/masked_1K_train/canny
+        --save_path  ./checkpoint/masked_1K_canny_200.pth
         --batch_size 8
         --epochs 200
         --save_ckpt_freq 200
@@ -47,8 +47,8 @@ python pretrain.py
 ```bash
 python pretrain.py \
         --use_canny 0 \
-        --data_path ../masked/train/1 \
-        --save_path  ./checkpoint/checkpoint_ori_200.pth \
+        --data_path ../masked_1K_train/ori \
+        --save_path  ./checkpoint/masked_1K_ori_200.pth \
         --batch_size 8 \
         --epochs 200 \
         --save_ckpt_freq 200 \
@@ -62,8 +62,8 @@ python pretrain.py \
 ```bash
 python pretrain.py \
         --use_canny 1 \
-        --data_path ../canny \
-        --save_path  ./checkpoint/checkpoint_canny_200.pth \
+        --data_path ../masked_1K_train/canny \
+        --save_path  ./checkpoint/masked_1K_canny_200.pth \
         --batch_size 8 \
         --epochs 200 \
         --save_ckpt_freq 200 \
