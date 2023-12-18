@@ -65,7 +65,8 @@ def main():
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        print(f'epoch {epoch+1}: loss is {total_loss/length}')
+        scheduler.step()
+        print(f'epoch {epoch+1}: loss is {total_loss/length}, lr:{optimizer.param_groups[0]["lr"]}')
         if int((epoch+1)%50) == 0:
             torch.save(classifer, f'classifer{count}.pth')
             count += 1
