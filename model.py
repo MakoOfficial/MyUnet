@@ -180,29 +180,48 @@ class Ori_Embedding(nn.Module):
         super(Ori_Embedding, self).__init__()
         self.feature_extract = nn.ModuleList([])
         self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv2)
+        self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv3)
+        self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv4)
+        self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv5)
 
         for param in self.feature_extract.parameters():
             param.requires_grad = False
 
         # add the patch embedding
-        self.Patch_Embding = nn.Sequential(
-            nn.Conv2d(512, 1024, kernel_size=3, padding=1),
-            nn.MaxPool2d(kernel_size=16)
+        self.downSample = nn.Sequential(
+            nn.Conv2d(512, 256, kernel_size=1, stride=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Conv2d(256, 1024, kernel_size=3, padding=1),
+            nn.BatchNorm2d(1024)
         )
+
+        self.res = nn.Sequential(
+            nn.Conv2d(512, 1024, kernel_size=1, stride=2),
+            nn.BatchNorm2d(1024)
+        )
+
 
     def forward(self, input):
         x = input
         for module in self.feature_extract:
             x = module(x)
+        print(f"After Ori_pretrain's shape: {x.shape}, and it's required [B, 512, 32, 32]")
         # x.shape = [B, 512, 32, 32]
         low_module = x
-        low_module = self.Patch_Embding(low_module)
+        # low_module = self.Patch_Embding(low_module)
+        low_module = F.relu(self.downSample(low_module)+self.res(low_module))
+        low_module = F.adaptive_avg_pool2d(low_module, 1)
         low_module = torch.squeeze(low_module)
-
+        print(f"After Ori_Embed's shape: {low_module.shape}, and it's required [B, 1024]")
         # low_module.shape = [B, 1024]
         return low_module
 
@@ -212,6 +231,7 @@ class Canny_Embedding(nn.Module):
         super(Canny_Embedding, self).__init__()
         self.feature_extract = nn.ModuleList([])
         self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv2)
 
         for param in self.feature_extract.parameters():
@@ -226,8 +246,10 @@ class Canny_Embedding(nn.Module):
             feature = module(feature)
 
         high_module = feature
+        print(f"After Canny_pretrain's shape: {high_module.shape}, and it's required [B, 64, 256, 256]")
         high_module = self.vit(high_module)
         # high_module.shape = [B, 1024]
+        print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 1024]")
         return high_module
 
 
@@ -254,9 +276,9 @@ class classifer(nn.Module):
             nn.Linear(512, 1)
         )
 
-    def forward(self, image, gender):
+    def forward(self, image, canny, gender):
         feature_ori = image.clone()
-        feature_canny = image.clone()
+        feature_canny = canny.clone()
         feature_ori = self.feature_extract_ori(feature_ori)
         feature_canny = self.feature_extract_canny(feature_canny)
 

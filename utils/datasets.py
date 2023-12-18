@@ -51,20 +51,29 @@ class UnetDataset(data.Dataset):
     def __getitem__(self, index):
         return self.list[index]
 
+    def __repr__(self):
+        repr = "(DatasetsForUnet,\n"
+        repr += "  transform = %s,\n" % str(self.transform)
+        repr += ")"
+        return repr
+
 
 class ClassDataset(data.Dataset):
-    def __init__(self, df, root_dir, transform=None):  # __init__是初始化该类的一些基础参数
-        self.root_dir = root_dir  # 文件目录
+    def __init__(self, df, ori_dir, canny_dir, transform=None):  # __init__是初始化该类的一些基础参数
+        self.ori_dir = ori_dir  # 文件目录
+        self.canny_dir = canny_dir  # 文件目录
         self.transform = transform  # 变换
-        self.images = os.listdir(self.root_dir)  # 目录里的所有文件
+        self.idList = os.listdir(self.ori_dir)  # 目录里的所有文件
         self.df = df    # load the dataframe from cvd file
-        self.image = []
+        self.ori = []
+        self.canny = []
         self.age = []
         self.male = []
-        print(type(self.df['id'][0]))
-        for i in range(len(self.images)):
+        # print(type(self.df['id'][0]))
+        for i in range(len(self.idList)):
             print(i)
-            self.image.append(self.read_a_pic(i))
+            self.ori.append(self.read_a_ori_pic(i))
+            self.canny.append(self.read_a_canny_pic(i))
             age, male = self.get_label(i)
             self.age.append(age)
             self.male.append(male)
@@ -72,11 +81,21 @@ class ClassDataset(data.Dataset):
         # self.imglist = torch.stack(tuple_1)
 
     def __len__(self):
-        return len(self.images)
+        return len(self.idList)
 
-    def read_a_pic(self, index):
-        image_index = self.images[index]
-        img_path = os.path.join(self.root_dir, image_index)
+    def read_a_ori_pic(self, index):
+        image_index = self.idList[index]
+        img_path = os.path.join(self.ori_dir, image_index)
+        # label_path = os.path.join(self.root_dir, "label", image_index)
+
+        img = Image.open(img_path)
+        # label = Image.open(label_path)
+        # return (self.transform(img), self.transform(label))
+        return self.transform(img)
+
+    def read_a_canny_pic(self, index):
+        image_index = self.idList[index]
+        img_path = os.path.join(self.canny_dir, image_index)
         # label_path = os.path.join(self.root_dir, "label", image_index)
 
         img = Image.open(img_path)
@@ -85,7 +104,8 @@ class ClassDataset(data.Dataset):
         return self.transform(img)
 
     def get_label(self, index):
-        image_index = self.images[index]
+        image_index = self.idList[index]
+        print(f"image_id: {image_index}")
         image_id = image_index.split('.')[0]
         row = self.df[self.df['id'] == int(image_id)]
         boneage = np.array(row['boneage'])
@@ -94,4 +114,10 @@ class ClassDataset(data.Dataset):
 
 
     def __getitem__(self, index):
-        return self.image[index], self.age[index], self.male[index]
+        return self.ori[index], self.canny[index], self.age[index], self.male[index]
+
+    def __repr__(self):
+        repr = "(DatasetsForClassifer,\n"
+        repr += "  transform = %s,\n" % str(self.transform)
+        repr += ")"
+        return repr
