@@ -87,7 +87,7 @@ class UNet_ori(nn.Module):
         self.conv5 = add_conv_stage(256, 512)
 
         self.conv4m = add_conv_stage(512, 256)
-        self.conv3m = add_conv_stage(256, 128)
+        # self.conv3m = add_conv_stage(256, 128)
         # self.conv2m = add_conv_stage(128, 64)
         # self.conv1m = add_conv_stage(64, 32)
 
@@ -113,9 +113,9 @@ class UNet_ori(nn.Module):
 
         conv5m_out = torch.cat((self.upsample54(conv5_out), conv4_out), 1)  # 512, 64, 64
         conv4m_out = self.conv4m(conv5m_out)    # 256, 64, 64
-        # conv3m_out = self.upsample43(conv4m_out) # 128, 128, 128
-        conv4m_out_ = torch.cat((self.upsample43(conv4m_out), conv3_out), 1)    # 256, 128, 128
-        conv3m_out = self.conv3m(conv4m_out_)   # 128, 128, 128
+        conv3m_out = self.upsample43(conv4m_out) # 128, 128, 128
+        # conv4m_out_ = torch.cat((self.upsample43(conv4m_out), conv3_out), 1)    # 256, 128, 128
+        # conv3m_out = self.conv3m(conv4m_out_)   # 128, 128, 128
         #   ori, delete last 2 joint.
         conv3m_out_ = self.upsample32(conv3m_out)  # 64, 256, 256
         conv2m_out_ = self.upsample21(conv3m_out_)  # 32, 512, 512
@@ -136,7 +136,7 @@ class UNet_canny(nn.Module):
 
         # self.conv4m = add_conv_stage(512, 256)
         # self.conv3m = add_conv_stage(256, 128)
-        # self.conv2m = add_conv_stage(128, 64)
+        self.conv2m = add_conv_stage(128, 64)
         self.conv1m = add_conv_stage(64, 32)
 
         self.conv0 = nn.Sequential(
@@ -161,10 +161,10 @@ class UNet_canny(nn.Module):
 
         conv4_us = self.upsample54(conv5_out)  # 256, 64, 64
         conv3_us = self.upsample43(conv4_us)    # 128, 128, 128
-        conv2us = self.upsample32(conv3_us) # 64, 256, 256
-        # conv3m_out_ = torch.cat((self.upsample32(conv3_us), conv2_out), 1)    # 128, 256, 256
-        # conv2m_out = self.conv2m(conv3m_out_)   # 64, 256, 256
-        conv2m_out_ = torch.cat((self.upsample21(conv2us), conv1_out), 1)    # 64, 512, 512
+        # conv2us = self.upsample32(conv3_us) # 64, 256, 256
+        conv3m_out_ = torch.cat((self.upsample32(conv3_us), conv2_out), 1)    # 128, 256, 256
+        conv2m_out = self.conv2m(conv3m_out_)   # 64, 256, 256
+        conv2m_out_ = torch.cat((self.upsample21(conv2m_out), conv1_out), 1)    # 64, 512, 512
         conv1m_out = self.conv1m(conv2m_out_)   # 32, 512, 512
         conv0_out = self.conv0(conv1m_out)  # 1, 512, 512
 
