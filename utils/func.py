@@ -40,7 +40,7 @@ def print(*arg):
     filename = os.path.join(output_dir, log_name)
     rewrite_print(*arg, file=open(filename, "a"))
 
-def eval_func(net, val_loader):
+def eval_func(net, val_loader, boneage_mean, boneage_div):
     # valid process
     net.eval()
     val_loss = 0.
@@ -55,9 +55,19 @@ def eval_func(net, val_loader):
             male = patch[3].cuda()
             output = net(images, cannys, male)
 
+            output = (output.cpu() * boneage_div) + boneage_mean
+            boneage = (boneage * boneage_div) + boneage_mean
+
             loss = loss_func(output, boneage)
             val_loss += loss.item()
             val_length += patch_len
 
     # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length
+
+
+def normalize_age(df):
+    boneage_mean = df['boneage'].mean()
+    boneage_div = df['boneage'].std()
+    df['zscore'] = df['boneage'].map(lambda x: (x - boneage_mean) / boneage_div)
+    return df, boneage_mean, boneage_div

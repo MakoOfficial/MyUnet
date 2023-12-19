@@ -3,6 +3,7 @@ import torch.utils.data as data
 from PIL import Image, ImageOps
 import numpy as np
 import torch
+from torchvision import transforms
 
 
 class resize:
@@ -32,8 +33,6 @@ class UnetDataset(data.Dataset):
         for i in range(len(self.images)):
             print(i)
             self.list.append(self.read_a_pic(i))
-        # tuple_1= tuple(self.list)
-        # self.imglist = torch.stack(tuple_1)
 
     def __len__(self):
         return len(self.images)
@@ -41,11 +40,7 @@ class UnetDataset(data.Dataset):
     def read_a_pic(self, index):
         image_index = self.images[index]
         img_path = os.path.join(self.root_dir, image_index)
-        # label_path = os.path.join(self.root_dir, "label", image_index)
-
         img = Image.open(img_path)
-        # label = Image.open(label_path)
-        # return (self.transform(img), self.transform(label))
         return self.transform(img)
 
     def __getitem__(self, index):
@@ -60,10 +55,15 @@ class UnetDataset(data.Dataset):
 
 
 class ClassDataset(data.Dataset):
-    def __init__(self, df, ori_dir, canny_dir, transform=None):  # __init__是初始化该类的一些基础参数
+    def __init__(self, df, ori_dir, canny_dir, transform=None, val=False):  # __init__是初始化该类的一些基础参数
         self.ori_dir = ori_dir  # 文件目录
         self.canny_dir = canny_dir  # 文件目录
         self.transform = transform  # 变换
+        self.transform_canny = transforms.Compose([
+            *transform.transforms,  # 复制第一个Compose容器中的所有转换
+            transforms.Normalize((0.5,), (0.5,)),
+        ])
+
         self.idList = os.listdir(self.ori_dir)  # 目录里的所有文件
         self.df = df    # load the dataframe from cvd file
         self.ori = []
@@ -78,8 +78,6 @@ class ClassDataset(data.Dataset):
             age, male = self.get_label(i)
             self.age.append(age)
             self.male.append(male)
-        # tuple_1= tuple(self.list)
-        # self.imglist = torch.stack(tuple_1)
 
     def __len__(self):
         return len(self.idList)
@@ -87,32 +85,23 @@ class ClassDataset(data.Dataset):
     def read_a_ori_pic(self, index):
         image_index = self.idList[index]
         img_path = os.path.join(self.ori_dir, image_index)
-        # label_path = os.path.join(self.root_dir, "label", image_index)
-
         img = Image.open(img_path)
-        # label = Image.open(label_path)
-        # return (self.transform(img), self.transform(label))
         return self.transform(img)
 
     def read_a_canny_pic(self, index):
         image_index = self.idList[index]
         img_path = os.path.join(self.canny_dir, image_index)
-        # label_path = os.path.join(self.root_dir, "label", image_index)
-
         img = Image.open(img_path)
-        # label = Image.open(label_path)
-        # return (self.transform(img), self.transform(label))
-        return self.transform(img)
+        return self.transform_canny(img)
 
     def get_label(self, index):
         image_index = self.idList[index]
         # print(f"image_id: {image_index}")
         image_id = image_index.split('.')[0]
         row = self.df[self.df['id'] == int(image_id)]
-        boneage = np.array(row['boneage'])
+        boneage = np.array(row['zscore'])
         male = np.array(row['male'].astype('float32'))
         return torch.Tensor(boneage), torch.Tensor(male)
-
 
     def __getitem__(self, index):
         return self.ori[index], self.canny[index], self.age[index], self.male[index]

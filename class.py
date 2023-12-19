@@ -9,7 +9,7 @@ from torch import nn
 from torch.optim import Adam
 from utils import datasets
 from utils.setting import get_class_args
-from utils.func import print, eval_func
+from utils.func import print, eval_func, normalize_age
 
 
 def main(args):
@@ -26,6 +26,7 @@ def main(args):
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     df = pd.read_csv(args.csv_path)
+    df, boneage_mean, boneage_div = normalize_age(df)
     train_ori_dir = args.ori_train_path
     train_canny_dir = args.canny_train_path
     train_trans = transforms.Compose([
@@ -81,6 +82,7 @@ def main(args):
 
     for epoch in range(epochs):
         classifer.cuda()
+        classifer.train()
         total_loss = 0.
         for idx, patch in enumerate(train_loader):
             images = patch[0].cuda()
@@ -96,7 +98,8 @@ def main(args):
             total_loss += loss.item()
 
         print(f'epoch {epoch+1}: training loss: {round(total_loss/train_length, 3)}, '
-              f'valid loss: {round(eval_func(classifer, val_loader), 3)}, lr:{optimizer.param_groups[0]["lr"]}')
+              f'valid loss: {round(eval_func(classifer, val_loader, boneage_mean, boneage_div), 3)}, '
+              f'lr:{optimizer.param_groups[0]["lr"]}')
         scheduler.step()
 
         if int((epoch+1) % args.save_ckpt_freq) == 0:

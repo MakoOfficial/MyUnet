@@ -60,7 +60,7 @@ def get_class_args():
 
     # Optimizer parameters
     parser.add_argument('--lr', type=float, default=1e-2, metavar='LR',
-                        help='learning rate (default: 1e-4)')
+                        help='learning rate (default: 1e-2)')
     parser.add_argument('--weight_decay', type=float, default=1e-5,
                         help='weight decay (default: 1e-5)')
 
