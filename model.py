@@ -195,18 +195,18 @@ class Ori_Embedding(nn.Module):
         # add the patch embedding
         self.downSample = nn.Sequential(
             nn.Conv2d(512, 256, kernel_size=1, stride=2),
-            nn.BatchNorm2d(256),
+            # nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
+            # nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 1024, kernel_size=3, padding=1),
-            nn.BatchNorm2d(1024)
+            # nn.BatchNorm2d(1024)
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=1, stride=2),
-            nn.BatchNorm2d(1024)
+            # nn.BatchNorm2d(1024)
         )
 
 
@@ -262,16 +262,16 @@ class classifer(nn.Module):
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
-            nn.BatchNorm1d(32),
+            # nn.BatchNorm1d(32),
             nn.ReLU()
         )
 
         self.MLP = nn.Sequential(
             nn.Linear(1024+1024+32, 1024),
-            nn.BatchNorm1d(1024),
+            # nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
+            # nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )

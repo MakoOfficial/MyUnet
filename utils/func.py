@@ -56,7 +56,7 @@ def eval_func(net, val_loader, boneage_mean, boneage_div):
             output = net(images, cannys, male)
 
             output = (output.cpu() * boneage_div) + boneage_mean
-            boneage = (boneage * boneage_div) + boneage_mean
+            boneage = (boneage.cpu() * boneage_div) + boneage_mean
 
             loss = loss_func(output, boneage)
             val_loss += loss.item()
