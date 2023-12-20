@@ -59,10 +59,10 @@ class ClassDataset(data.Dataset):
         self.ori_dir = ori_dir  # 文件目录
         self.canny_dir = canny_dir  # 文件目录
         self.transform = transform  # 变换
-        self.transform_canny = transforms.Compose([
-            *transform.transforms,  # 复制第一个Compose容器中的所有转换
-            transforms.Normalize((0.5,), (0.5,)),
-        ])
+        # self.transform_canny = transforms.Compose([
+        #     *transform.transforms,  # 复制第一个Compose容器中的所有转换
+        #     transforms.Normalize((0.5,), (0.5,)),
+        # ])
 
         self.idList = os.listdir(self.ori_dir)  # 目录里的所有文件
         self.df = df    # load the dataframe from cvd file
@@ -92,14 +92,15 @@ class ClassDataset(data.Dataset):
         image_index = self.idList[index]
         img_path = os.path.join(self.canny_dir, image_index)
         img = Image.open(img_path)
-        return self.transform_canny(img)
+        # return self.transform_canny(img)
+        return self.transform(img)
 
     def get_label(self, index):
         image_index = self.idList[index]
         # print(f"image_id: {image_index}")
         image_id = image_index.split('.')[0]
         row = self.df[self.df['id'] == int(image_id)]
-        boneage = np.array(row['zscore'])
+        boneage = np.array(row['boneage'])
         male = np.array(row['male'].astype('float32'))
         return torch.Tensor(boneage), torch.Tensor(male)
 

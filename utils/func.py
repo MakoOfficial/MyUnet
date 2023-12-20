@@ -40,7 +40,7 @@ def print(*arg):
     filename = os.path.join(output_dir, log_name)
     rewrite_print(*arg, file=open(filename, "a"))
 
-def eval_func(net, val_loader, boneage_mean, boneage_div):
+def eval_func(net, val_loader):
     # valid process
     net.eval()
     val_loss = 0.
@@ -55,8 +55,8 @@ def eval_func(net, val_loader, boneage_mean, boneage_div):
             male = patch[3].cuda()
             output = net(images, cannys, male)
 
-            output = (output.cpu() * boneage_div) + boneage_mean
-            boneage = (boneage.cpu() * boneage_div) + boneage_mean
+            # output = (output.cpu() * boneage_div) + boneage_mean
+            # boneage = (boneage.cpu() * boneage_div) + boneage_mean
 
             loss = loss_func(output, boneage)
             val_loss += loss.item()
