@@ -195,18 +195,18 @@ class Ori_Embedding(nn.Module):
         # add the patch embedding
         self.downSample = nn.Sequential(
             nn.Conv2d(512, 256, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.Conv2d(256, 1024, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(1024)
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(1024)
         )
 
 
@@ -253,7 +253,6 @@ class Canny_Embedding(nn.Module):
         return high_module
 
 
-
 class classifer(nn.Module):
     def __init__(self, backbone_ori, backbone_canny):
         super(classifer, self).__init__()
@@ -262,19 +261,40 @@ class classifer(nn.Module):
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
-            # nn.BatchNorm1d(32),
+            nn.BatchNorm1d(32),
             nn.ReLU()
         )
 
         self.MLP = nn.Sequential(
             nn.Linear(1024+1024+32, 1024),
-            # nn.BatchNorm1d(1024),
+            nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
-            # nn.BatchNorm1d(512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )
+
+    def forward(self, image, canny, gender):
+        feature_ori = image.clone()
+        feature_canny = canny.clone()
+        feature_ori = self.feature_extract_ori(feature_ori)
+        feature_canny = self.feature_extract_canny(feature_canny)
+
+        gender_encode = self.gender_encoder(gender)
+
+        # print(feature_ori.shape, feature_canny.shape, gender_encode.shape)
+        feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 512+512+32
+        # print(feature_fusion.shape)
+        return self.MLP(feature_fusion)
+
+
+class Align(nn.Module):
+    def __init__(self, backbone_ori, backbone_canny):
+        super(Align, self).__init__()
+        self.feature_extract_ori = Ori_Embedding(backbone_ori)
+        self.feature_extract_canny = Canny_Embedding(backbone_canny)
+
 
     def forward(self, image, canny, gender):
         feature_ori = image.clone()

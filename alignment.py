@@ -22,8 +22,6 @@ def train(args):
 
     trans = transforms.Compose([
         transforms.RandomHorizontalFlip(),
-        datasets.resize(args.input_size),
-        # normal(),
         transforms.Grayscale(),
         transforms.ToTensor(),
     ])
