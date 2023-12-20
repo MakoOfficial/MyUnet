@@ -40,6 +40,7 @@ def main(args):
     val_trans = transforms.Compose([
         transforms.Grayscale(),
         transforms.ToTensor(),
+        transforms.Normalize([0.5,], [0.5,])
     ])
 
     train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir, transform=train_trans)

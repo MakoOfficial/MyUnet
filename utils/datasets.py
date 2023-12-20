@@ -100,7 +100,7 @@ class ClassDataset(data.Dataset):
         # print(f"image_id: {image_index}")
         image_id = image_index.split('.')[0]
         row = self.df[self.df['id'] == int(image_id)]
-        boneage = np.array(row['boneage'])
+        boneage = np.array(row['zscore'])
         male = np.array(row['male'].astype('float32'))
         return torch.Tensor(boneage), torch.Tensor(male)
 
