@@ -78,27 +78,27 @@ python pretrain.py \
 # run demo ori
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcut/checkpoint_ori_200.pth
+    --chkpt ./checkpoint/masked_1K/masked_1K_ori_200.pth
     --data_path ../archive/masked_crop/val/a
-    --save_path ./output/shortcut/masked_ori.png
+    --save_path ./output/masked_1K/masked_ori.png
     --input_size 512
 ```
 
 # run demo canny
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcutthree/checkpoint_canny_200.pth
+    --chkpt checkpoint/masked_1K/masked_1K_canny_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/shortcutthree/masked_canny.png
+    --save_path ./output/masked_1K/masked_canny.png
     --input_size 512
 ```
 
 # ori2canny
 ```bash
 python demo.py
-    --chkpt checkpoint/shortcutthree/checkpoint_ori_200.pth
+    --chkpt ./checkpoint/masked_1K/masked_1K_ori_200.pth
     --data_path ../archive/masked_crop/canny/val
-    --save_path ./output/shortcutthree/ori2canny.png
+    --save_path ./output/masked_1K/ori2canny.png
     --input_size 512
 ```
 
@@ -124,3 +124,25 @@ python class.py \
     --step_size 30 \
     --gamma  0.5
 ```
+
+python onlyUseOri.py \
+    --batch_size 80 \
+    --epochs 200 \
+    --save_ckpt_freq 50 \
+    --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
+    --lr 1e-3 \
+    --weight_decay 1e-5 \
+    --step_size 30 \
+    --gamma  0.5
+
+python onlyUseCanny.py \
+    --batch_size 80 \
+    --epochs 100 \
+    --save_ckpt_freq 50 \
+    --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
+    --lr 1e-3 \
+    --weight_decay 1e-5 \
+    --step_size 30 \
+    --gamma  0.5

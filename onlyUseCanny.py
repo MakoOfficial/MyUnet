@@ -24,27 +24,29 @@ def setup_seed(seed=3407):
     torch.backends.cudnn.deterministic = True # 选择确定性算法
     torch.backends.cudnn.benchmark = False # if benchmark=True, deterministic will be False
     torch.backends.cudnn.enabled = False
+
+setup_seed(seed=3047)
     
 def main(args):
     print(args)
     # torch.manual_seed(args.seed)
     print(f'Set manual random seed: {args.seed}')
-    checkpoint_ori = torch.load(args.ori_ckpt_path)
-    print(f'Load MyUnet_Ori from {args.ori_ckpt_path}')
-    # checkpoint_canny = torch.load(args.canny_ckpt_path)
-    # print(f'Load MyUnet_Canny from {args.canny_ckpt_path}')
+    # checkpoint_ori = torch.load(args.ori_ckpt_path)
+    # print(f'Load MyUnet_Ori from {args.ori_ckpt_path}')
+    checkpoint_canny = torch.load(args.canny_ckpt_path)
+    print(f'Load MyUnet_Canny from {args.canny_ckpt_path}')
 
     # classifer = model.classifer(checkpoint_ori, checkpoint_canny)
-    classifer = model.distillation(checkpoint_ori)
+    classifer = model.distillation_canny(checkpoint_canny)
     print(f'Model:\n{classifer}')
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     df = pd.read_csv(args.csv_path)
-    df, boneage_mean, boneage_div = normalize_age(df)
+    # df, boneage_mean, boneage_div = normalize_age(df)
     train_ori_dir = args.ori_train_path
     train_canny_dir = args.canny_train_path
     train_trans = transforms.Compose([
-        # transforms.RandomHorizontalFlip(),
+        transforms.RandomHorizontalFlip(),
         transforms.Grayscale(),
         transforms.ToTensor(),
     ])
@@ -68,7 +70,6 @@ def main(args):
         dataset=train_dataset,
         batch_size=args.batch_size,
         sampler=sampler,
-        # shuffle=False,
         drop_last=True
     )
 
@@ -108,7 +109,7 @@ def main(args):
             male = patch[3].cuda()
             optimizer.zero_grad()
 
-            output = classifer(images, male)
+            output = classifer(cannys, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -121,40 +122,20 @@ def main(args):
             total_loss += loss.item()
         print(f"length :{train_length}")
         print(f'epoch {epoch+1}: training loss: {round(total_loss/train_length, 3)}, '
-              # f'valid loss: {round(eval_func_dist(classifer, val_loader, mean=boneage_mean, div=boneage_div), 3)}, '
+              # f'valid loss: {round(eval_func_dist(classifer, val_loader, mean=None, div=None), 3)}, '
               f'lr:{optimizer.param_groups[0]["lr"]}')
         scheduler.step()
-    with torch.no_grad():
-        train_length = 0.
-        total_loss = 0.
-        for idx, patch in enumerate(train_loader):
-            train_length += patch[0].shape[0]
-            images = patch[0].cuda()
-            cannys = patch[1].cuda()
-            boneage = patch[2].cuda()
-            male = patch[3].cuda()
 
-            output = classifer(images, male)
-
-            output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
-            print(f"pred: {output}, \nlabel: {boneage}")
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
-
-            loss = loss_func(output, boneage)
-            total_loss += loss.item()
-        print(f"length :{train_length}")
-        print(f'training loss: {round(total_loss/train_length, 3)}')
-            
-    torch.save(classifer, 'CHECKPOINT_ori.pth')
+        if int((epoch+1) % args.save_ckpt_freq) == 0:
+            save_name = os.path.join(args.save_path, args.save_name)
+            torch.save(classifer, f'{save_name}_{epoch+1}.pth')
+    for idx, patch in enumerate(train_loader):
+        boneage = patch[2]
+        print(f"boneage:{boneage}")
     return classifer
             
-    
-    
-setup_seed(seed=3047)
 opt = get_class_args()
-_ = main(opt)
-classifer = torch.load('CHECKPOINT_ori.pth')
+classifer = main(opt)
 df = pd.read_csv('../archive/boneage-training-dataset.csv')
 ori_dir = '../masked_1K_train/ori'
 canny_dir = '../masked_1K_train/canny'
@@ -168,14 +149,12 @@ sampler = torch.utils.data.RandomSampler(data_source=dataset)
 loader = data.dataloader.DataLoader(
     dataset=dataset,
     batch_size=80,
-    # sampler=sampler,
-    shuffle=False,
+    sampler=sampler,
     drop_last=True
 )
-print("\neval=========================================================")
 for idx, patch in enumerate(loader):
-    boneage = patch[2]
-    print(f"boneage:{boneage}")
+        boneage = patch[2]
+        print(f"boneage:{boneage}")
 loss_func = nn.L1Loss(reduction="sum")
 val_length = 0.
 total_loss = 0.
@@ -187,7 +166,7 @@ with torch.no_grad():
         boneage = batch[2].cuda()
         male = batch[3].cuda()
         # output = net(images, cannys, male)
-        output = classifer(images, male)
+        output = classifer(cannys, male)
         output = torch.squeeze(output)
         boneage = torch.squeeze(boneage)
         print(f"pred: {output}, \nlabel: {boneage}")
