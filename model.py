@@ -308,3 +308,37 @@ class Align(nn.Module):
         feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 512+512+32
         # print(feature_fusion.shape)
         return self.MLP(feature_fusion)
+
+
+class distillation(nn.Module):
+    def __init__(self, backbone):
+        super(distillation, self).__init__()
+        # ori branch
+        self.feature_extract_ori = Ori_Embedding(backbone)
+
+        self.gender_encoder = nn.Sequential(
+            nn.Linear(1, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU()
+        )
+
+        self.MLP = nn.Sequential(
+            nn.Linear(1024 + 32, 512),
+            # nn.BatchNorm1d(1024),
+            # nn.ReLU(),
+            # nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+
+    def forward(self, x, gender):
+        feature = self.feature_extract_ori(x)
+
+        gender_encode = self.gender_encoder(gender)
+
+        fusion = torch.cat((feature, gender_encode), dim=1)
+
+        return self.MLP(fusion)
+
+
