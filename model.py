@@ -195,22 +195,22 @@ class Ori_Embedding(nn.Module):
         # add the patch embedding
         self.downSample = nn.Sequential(
             nn.Conv2d(512, 256, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(256),
-            nn.LayerNorm((16, 16)),
+            nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(256),
-            nn.LayerNorm((16, 16)),
+            nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 1024, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(1024)
-            nn.LayerNorm((16, 16))
+            nn.BatchNorm2d(1024)
+            # nn.LayerNorm((16, 16))
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(1024)
-            nn.LayerNorm((16, 16))
+            nn.BatchNorm2d(1024)
+            # nn.LayerNorm((16, 16))
         )
 
 
@@ -265,25 +265,23 @@ class classifer(nn.Module):
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
-            nn.BatchNorm1d(32),
+            # nn.BatchNorm1d(32),
             nn.ReLU()
         )
 
         self.MLP = nn.Sequential(
             nn.Linear(1024+1024+32, 1024),
-            nn.BatchNorm1d(1024),
+            # nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
+            # nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )
 
     def forward(self, image, canny, gender):
-        feature_ori = image.clone()
-        feature_canny = canny.clone()
-        feature_ori = self.feature_extract_ori(feature_ori)
-        feature_canny = self.feature_extract_canny(feature_canny)
+        feature_ori = self.feature_extract_ori(image)
+        feature_canny = self.feature_extract_canny(canny)
 
         gender_encode = self.gender_encoder(gender)
 
@@ -323,7 +321,7 @@ class distillation(nn.Module):
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
             # nn.BatchNorm1d(32),
-            nn.LayerNorm(32),
+            # nn.LayerNorm(32),
             nn.ReLU()
         )
 
@@ -333,7 +331,7 @@ class distillation(nn.Module):
             # nn.ReLU(),
             # nn.Linear(1024, 512),
             # nn.BatchNorm1d(512),
-            nn.LayerNorm(512),
+            # nn.LayerNorm(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )

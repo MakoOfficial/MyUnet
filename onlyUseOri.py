@@ -69,7 +69,7 @@ def main(args):
         batch_size=args.batch_size,
         sampler=sampler,
         # shuffle=False,
-        drop_last=True
+        drop_last=False
     )
 
     val_loader = data.dataloader.DataLoader(

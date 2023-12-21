@@ -49,8 +49,8 @@ sampler = torch.utils.data.RandomSampler(data_source=dataset)
 loader = data.dataloader.DataLoader(
         dataset=dataset,
         batch_size=80,
-        sampler=sampler,
-        # shuffle=False,
+        # sampler=sampler,
+        shuffle=False,
         drop_last=True
     )
 net = net.cuda()
