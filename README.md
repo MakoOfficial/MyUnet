@@ -125,6 +125,21 @@ python class.py \
     --gamma  0.5
 ```
 
+# run class2.py
+```bash
+python class2.py \
+    --batch_size 20 \
+    --epochs 100 \
+    --save_ckpt_freq 50 \
+    --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
+    --lr 1e-3 \
+    --weight_decay 1e-5 \
+    --step_size 10 \
+    --gamma  0.5
+```
+
+
 python onlyUseOri.py \
     --batch_size 80 \
     --epochs 200 \

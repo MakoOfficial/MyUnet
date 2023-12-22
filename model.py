@@ -364,7 +364,7 @@ class Canny_Embedding2(nn.Module):
             param.requires_grad = False
 
         self.stage1 = nn.Sequential(
-            BTNK1(64, 256, 1),
+            BTNK1(64, 256, 2),
             BTNK2(256),
             BTNK2(256)
         )
@@ -384,12 +384,12 @@ class Canny_Embedding2(nn.Module):
             BTNK2(1024),
             BTNK2(1024)
         )
-
-        self.stage4 = nn.Sequential(
-            BTNK1(1024, 2048, 2),
-            BTNK2(2048),
-            BTNK2(2048)
-        )
+        #
+        # self.stage4 = nn.Sequential(
+        #     BTNK1(1024, 2048, 2),
+        #     BTNK2(2048),
+        #     BTNK2(2048)
+        # )
 
 
     def forward(self, input):
@@ -402,13 +402,13 @@ class Canny_Embedding2(nn.Module):
         high_module = self.stage1(feature)
         high_module = self.stage2(high_module)
         high_module = self.stage3(high_module)
-        high_module = self.stage4(high_module)
+        # high_module = self.stage4(high_module)
 
         high_module = F.adaptive_avg_pool2d(high_module, 1)
         high_module = torch.squeeze(high_module)
 
-        # high_module.shape = [B, 2048]
-        # print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 2048]")
+        # high_module.shape = [B, 1024]
+        # print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 1024]")
         return high_module
 
 
@@ -545,7 +545,7 @@ class classifer2(nn.Module):
         )
 
         self.MLP = nn.Sequential(
-            nn.Linear(1024+2048+32, 1024),
+            nn.Linear(1024+1024+32, 1024),
             # nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
