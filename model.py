@@ -237,21 +237,21 @@ class BTNK1(nn.Module):
         self.inner_C = int(C_out/4)
         self.downSample = nn.Sequential(
             nn.Conv2d(C_in, self.inner_C, kernel_size=1, stride=S),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(self.inner_C),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(self.inner_C, self.inner_C, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(self.inner_C),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(self.inner_C, C_out, kernel_size=1),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(C_out)
             # nn.LayerNorm((16, 16))
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(C_in, C_out, kernel_size=1, stride=S),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(C_out)
             # nn.LayerNorm((16, 16))
         )
 
@@ -266,15 +266,15 @@ class BTNK2(nn.Module):
         self.inner_channels = int(C/4)
         self.innerLayer = nn.Sequential(
             nn.Conv2d(C, self.inner_channels, kernel_size=1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(self.inner_channels),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(self.inner_channels, self.inner_channels, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(self.inner_channels),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(self.inner_channels, C, kernel_size=1),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(C)
             # nn.LayerNorm((16, 16))
         )
 
