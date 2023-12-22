@@ -28,14 +28,15 @@ def setup_seed(seed=3407):
 
 # setup_seed(seed=3047)
 setup_seed(seed=0)
-net = torch.load('../../autodl-tmp/classifer_200.pth')
+# net = torch.load('../../autodl-tmp/classifer_100.pth')
 # net = torch.load('CHECKPOINT_ori.pth')
+net = torch.load('CHECKPOINT_class.pth')
 
 df = pd.read_csv('../archive/boneage-training-dataset.csv')
 ori_dir = '../masked_1K_train/ori'
 canny_dir = '../masked_1K_train/canny'
 val_trans = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
+    # transforms.RandomHorizontalFlip(),
     transforms.Grayscale(),
     transforms.ToTensor(),
 ])
@@ -55,7 +56,7 @@ loader = data.dataloader.DataLoader(
         drop_last=True
     )
 net = net.cuda()
-net.eval()
+net.train()
 loss_func = nn.L1Loss(reduction='sum')
 val_length = 0.
 total_loss = 0.
