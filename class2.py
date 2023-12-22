@@ -9,7 +9,7 @@ from torch import nn
 from torch.optim import Adam
 from utils import datasets
 from utils.setting import get_class_args
-from utils.func import print, eval_func, normalize_age
+from utils.func import print, eval_func, normalize_age, L1_regular
 import numpy as np
 import random
 
@@ -113,7 +113,7 @@ def main(args):
 
             assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage)
+            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-5)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

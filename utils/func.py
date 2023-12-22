@@ -3,6 +3,7 @@ import os
 import torch
 from torch import nn
 
+
 def get_Net(args):
     if args.use_canny:
         print("use UNet_canny")
@@ -14,6 +15,7 @@ def get_Net(args):
         net = model.UNet_ori()
         print(net)
         return net
+
 
 def get_align():
     net_Ori = model.UNet_ori()
@@ -39,6 +41,7 @@ def print(*arg):
     log_name = 'log.txt'
     filename = os.path.join(output_dir, log_name)
     rewrite_print(*arg, file=open(filename, "a"))
+
 
 def eval_func(net, val_loader, mean, div):
     # valid process
@@ -69,6 +72,7 @@ def eval_func(net, val_loader, mean, div):
 
     # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length
+
 
 def eval_func_dist(net, val_loader, mean, div):
     # valid process
@@ -106,3 +110,11 @@ def normalize_age(df):
     boneage_div = df['boneage'].std()
     df['zscore'] = df['boneage'].map(lambda x: (x - boneage_mean) / boneage_div)
     return df, boneage_mean, boneage_div
+
+
+def L1_regular(net, alpha):
+    loss = 0.
+    for param in net.parameters():
+        loss += torch.sum(torch.abs(param))
+
+    return alpha * loss
