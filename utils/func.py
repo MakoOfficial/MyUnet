@@ -115,6 +115,7 @@ def normalize_age(df):
 def L1_regular(net, alpha):
     loss = 0.
     for param in net.parameters():
-        loss += torch.sum(torch.abs(param))
+        if param.requires_grad:
+            loss += torch.sum(torch.abs(param))
 
     return alpha * loss

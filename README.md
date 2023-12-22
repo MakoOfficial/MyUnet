@@ -134,7 +134,7 @@ python class2.py \
     --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
     --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
     --lr 1e-3 \
-    --weight_decay 1e-5 \
+    --weight_decay 1e-2 \
     --step_size 10 \
     --gamma  0.5
 ```

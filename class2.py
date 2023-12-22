@@ -113,7 +113,7 @@ def main(args):
 
             assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-5)
+            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-2)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
