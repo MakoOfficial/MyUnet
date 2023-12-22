@@ -229,6 +229,100 @@ class Ori_Embedding(nn.Module):
         # low_module.shape = [B, 1024]
         return low_module
 
+
+class BTNK1(nn.Module):
+
+    def __init__(self, C_in, C_out, S) -> None:
+        super(BTNK1, self).__init__()
+        self.inner_C = int(C_out/4)
+        self.downSample = nn.Sequential(
+            nn.Conv2d(C_in, self.inner_C, kernel_size=1, stride=S),
+            # nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
+            nn.ReLU(),
+            nn.Conv2d(self.inner_C, self.inner_C, kernel_size=3, padding=1),
+            # nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
+            nn.ReLU(),
+            nn.Conv2d(self.inner_C, C_out, kernel_size=1),
+            # nn.BatchNorm2d(1024)
+            # nn.LayerNorm((16, 16))
+        )
+
+        self.res = nn.Sequential(
+            nn.Conv2d(C_in, C_out, kernel_size=1, stride=S),
+            # nn.BatchNorm2d(1024)
+            # nn.LayerNorm((16, 16))
+        )
+
+    def forward(self, x):
+        return F.relu((self.downSample(x)+self.res(x)))
+
+
+class BTNK2(nn.Module):
+
+    def __init__(self, C) -> None:
+        super(BTNK2, self).__init__()
+        self.inner_channels = int(C/4)
+        self.innerLayer = nn.Sequential(
+            nn.Conv2d(C, self.inner_channels, kernel_size=1),
+            # nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
+            nn.ReLU(),
+            nn.Conv2d(self.inner_channels, self.inner_channels, kernel_size=3, padding=1),
+            # nn.BatchNorm2d(256),
+            # nn.LayerNorm((16, 16)),
+            nn.ReLU(),
+            nn.Conv2d(self.inner_channels, C, kernel_size=1),
+            # nn.BatchNorm2d(1024)
+            # nn.LayerNorm((16, 16))
+        )
+
+    def forward(self, x):
+        return F.relu(self.innerLayer(x)+x)
+
+
+class Ori_Embedding2(nn.Module):
+
+    def __init__(self, backbone):
+        super(Ori_Embedding2, self).__init__()
+        self.feature_extract = nn.ModuleList([])
+        self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.max_pool)
+        self.feature_extract.append(backbone.conv2)
+        self.feature_extract.append(backbone.max_pool)
+        self.feature_extract.append(backbone.conv3)
+        self.feature_extract.append(backbone.max_pool)
+        self.feature_extract.append(backbone.conv4)
+        self.feature_extract.append(backbone.max_pool)
+        self.feature_extract.append(backbone.conv5)
+
+        for param in self.feature_extract.parameters():
+            param.requires_grad = False
+
+        self.residual = nn.Sequential(
+            BTNK1(512, 1024, 2),
+            BTNK2(1024),
+            BTNK2(1024),
+            BTNK2(1024)
+        )
+
+
+    def forward(self, input):
+        x = input
+        for module in self.feature_extract:
+            x = module(x)
+        # print(f"After Ori_pretrain's shape: {x.shape}, and it's required [B, 512, 32, 32]")
+        # x.shape = [B, 512, 32, 32]
+        # low_module = self.Patch_Embding(low_module)
+        low_module = self.residual(x)
+        low_module = F.adaptive_avg_pool2d(low_module, 1)
+        low_module = torch.squeeze(low_module)
+        # print(f"After Ori_Embed's shape: {low_module.shape}, and it's required [B, 1024]")
+        # low_module.shape = [B, 1024]
+        return low_module
+
+
 class Canny_Embedding(nn.Module):
 
     def __init__(self, backbone):
@@ -254,6 +348,67 @@ class Canny_Embedding(nn.Module):
         high_module = self.vit(high_module)
         # high_module.shape = [B, 1024]
         # print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 1024]")
+        return high_module
+
+
+class Canny_Embedding2(nn.Module):
+
+    def __init__(self, backbone):
+        super(Canny_Embedding2, self).__init__()
+        self.feature_extract = nn.ModuleList([])
+        self.feature_extract.append(backbone.conv1)
+        self.feature_extract.append(backbone.max_pool)
+        self.feature_extract.append(backbone.conv2)
+
+        for param in self.feature_extract.parameters():
+            param.requires_grad = False
+
+        self.stage1 = nn.Sequential(
+            BTNK1(64, 256, 1),
+            BTNK2(256),
+            BTNK2(256)
+        )
+
+        self.stage2 = nn.Sequential(
+            BTNK1(256, 512, 2),
+            BTNK2(512),
+            BTNK2(512),
+            BTNK2(512)
+        )
+
+        self.stage3 = nn.Sequential(
+            BTNK1(512, 1024, 2),
+            BTNK2(1024),
+            BTNK2(1024),
+            BTNK2(1024),
+            BTNK2(1024),
+            BTNK2(1024)
+        )
+
+        self.stage4 = nn.Sequential(
+            BTNK1(1024, 2048, 2),
+            BTNK2(2048),
+            BTNK2(2048)
+        )
+
+
+    def forward(self, input):
+        feature = input
+        for module in self.feature_extract:
+            feature = module(feature)
+        # print(f"After Canny_pretrain's shape: {feature.shape}, and it's required [B, 64, 256, 256]")
+
+        # resnet
+        high_module = self.stage1(feature)
+        high_module = self.stage2(high_module)
+        high_module = self.stage3(high_module)
+        high_module = self.stage4(high_module)
+
+        high_module = F.adaptive_avg_pool2d(high_module, 1)
+        high_module = torch.squeeze(high_module)
+
+        # high_module.shape = [B, 2048]
+        # print(f"After Canny_Embed's shape: {high_module.shape}, and it's required [B, 2048]")
         return high_module
 
 
@@ -376,3 +531,36 @@ class distillation_canny(nn.Module):
         fusion = torch.cat((feature, gender_encode), dim=1)
 
         return self.MLP(fusion)
+
+class classifer2(nn.Module):
+    def __init__(self, backbone_ori, backbone_canny):
+        super(classifer2, self).__init__()
+        self.feature_extract_ori = Ori_Embedding2(backbone_ori)
+        self.feature_extract_canny = Canny_Embedding2(backbone_canny)
+
+        self.gender_encoder = nn.Sequential(
+            nn.Linear(1, 32),
+            # nn.BatchNorm1d(32),
+            nn.ReLU()
+        )
+
+        self.MLP = nn.Sequential(
+            nn.Linear(1024+2048+32, 1024),
+            # nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            # nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+
+    def forward(self, image, canny, gender):
+        feature_ori = self.feature_extract_ori(image)
+        feature_canny = self.feature_extract_canny(canny)
+
+        gender_encode = self.gender_encoder(gender)
+
+        # print(feature_ori.shape, feature_canny.shape, gender_encode.shape)
+        feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 1024+2048+32
+        # print(feature_fusion.shape)
+        return self.MLP(feature_fusion)

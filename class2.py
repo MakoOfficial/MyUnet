@@ -21,13 +21,13 @@ def setup_seed(seed=3407):
     torch.manual_seed(seed)  # torch的CPU随机性，为CPU设置随机种子
     torch.cuda.manual_seed(seed)  # torch的GPU随机性，为当前GPU设置随机种子
     torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.   torch的GPU随机性，为所有GPU设置随机种子
-    torch.backends.cudnn.deterministic = True # 选择确定性算法
-    torch.backends.cudnn.benchmark = False # if benchmark=True, deterministic will be False
+    torch.backends.cudnn.deterministic = True  # 选择确定性算法
+    torch.backends.cudnn.benchmark = False  # if benchmark=True, deterministic will be False
     torch.backends.cudnn.enabled = False
+
 
 def main(args):
     print(args)
-    # torch.manual_seed(args.seed)
     setup_seed(args.seed)
     print(f'Set manual random seed: {args.seed}')
     checkpoint_ori = torch.load(args.ori_ckpt_path)
@@ -35,7 +35,7 @@ def main(args):
     checkpoint_canny = torch.load(args.canny_ckpt_path)
     print(f'Load MyUnet_Canny from {args.canny_ckpt_path}')
 
-    classifer = model.classifer(checkpoint_ori, checkpoint_canny)
+    classifer = model.classifer2(checkpoint_ori, checkpoint_canny)
     print(f'Model:\n{classifer}')
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
@@ -57,7 +57,8 @@ def main(args):
         # transforms.Normalize([0.5,], [0.5,])
     ])
 
-    train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir, transform=train_trans)
+    train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir,
+                                          transform=train_trans)
     print(f'Training dataset info:\n{train_dataset}')
     sampler = torch.utils.data.RandomSampler(data_source=train_dataset)
 
@@ -83,7 +84,7 @@ def main(args):
     print(f"LR = {args.lr}")
     print(f"Batch size = {args.batch_size}")
     print(f"Number of training steps = {num_training_steps_per_epoch}")
-    print(f"Number of training examples per epoch = {num_training_steps_per_epoch*args.batch_size}")
+    print(f"Number of training examples per epoch = {num_training_steps_per_epoch * args.batch_size}")
 
     loss_func = nn.L1Loss(reduction="sum")
     train_length = train_dataset.__len__()
@@ -117,7 +118,7 @@ def main(args):
             optimizer.step()
             total_loss += loss.item()
 
-        print(f'epoch {epoch+1}: training loss: {round(total_loss/train_length, 3)}, '
+        print(f'epoch {epoch + 1}: training loss: {round(total_loss / train_length, 3)}, '
               f'valid loss: {round(eval_func(classifer, val_loader, mean=boneage_mean, div=boneage_div), 3)}, '
               f'lr:{optimizer.param_groups[0]["lr"]}')
         scheduler.step()
@@ -145,15 +146,15 @@ def main(args):
             loss = loss_func(output, boneage)
             total_loss += loss.item()
         print(f"length :{train_length}")
-        print(f'training loss: {round(total_loss/train_length, 3)}')
-            
-    torch.save(classifer, 'CHECKPOINT_class.pth')
+        print(f'training loss: {round(total_loss / train_length, 3)}')
+
+    torch.save(classifer, 'CHECKPOINT_class2.pth')
     return None
 
 
 opt = get_class_args()
 main(opt)
-classifer = torch.load('CHECKPOINT_class.pth')
+classifer = torch.load('CHECKPOINT_class2.pth')
 df = pd.read_csv('../archive/boneage-training-dataset.csv')
 ori_dir = '../masked_1K_train/ori'
 canny_dir = '../masked_1K_train/canny'
@@ -192,5 +193,5 @@ with torch.no_grad():
         loss = loss_func(output, boneage)
         total_loss += loss.item()
 
-print(f'length is {val_length}')    
-print(f'loss is {round(total_loss/val_length, 3)}')
+print(f'length is {val_length}')
+print(f'loss is {round(total_loss / val_length, 3)}')
