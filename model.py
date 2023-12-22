@@ -195,21 +195,21 @@ class Ori_Embedding(nn.Module):
         # add the patch embedding
         self.downSample = nn.Sequential(
             nn.Conv2d(512, 256, kernel_size=1, stride=2),
-            nn.BatchNorm2d(256),
+            # nn.BatchNorm2d(256),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
+            # nn.BatchNorm2d(256),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 1024, kernel_size=3, padding=1),
-            nn.BatchNorm2d(1024)
+            # nn.BatchNorm2d(1024)
             # nn.LayerNorm((16, 16))
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=1, stride=2),
-            nn.BatchNorm2d(1024)
+            # nn.BatchNorm2d(1024)
             # nn.LayerNorm((16, 16))
         )
 

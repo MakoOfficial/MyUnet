@@ -14,7 +14,7 @@ from utils.func import print, eval_func, normalize_age
 
 import numpy as np
 import random
- 
+
 def setup_seed(seed=3407):
     random.seed(seed)  # Python的随机性
     os.environ['PYTHONHASHSEED'] = str(seed)  # 设置Python哈希种子，为了禁止hash随机化，使得实验可复现
@@ -26,15 +26,16 @@ def setup_seed(seed=3407):
     torch.backends.cudnn.benchmark = False # if benchmark=True, deterministic will be False
     torch.backends.cudnn.enabled = False
 
-setup_seed(seed=3047)
-# net = torch.load('./checkpoint/classifer7.pth')
-net = torch.load('CHECKPOINT_ori.pth')
+# setup_seed(seed=3047)
+setup_seed(seed=0)
+net = torch.load('../../autodl-tmp/classifer_200.pth')
+# net = torch.load('CHECKPOINT_ori.pth')
 
 df = pd.read_csv('../archive/boneage-training-dataset.csv')
 ori_dir = '../masked_1K_train/ori'
 canny_dir = '../masked_1K_train/canny'
 val_trans = transforms.Compose([
-    # transforms.RandomHorizontalFlip(),
+    transforms.RandomHorizontalFlip(),
     transforms.Grayscale(),
     transforms.ToTensor(),
 ])
@@ -65,8 +66,8 @@ with torch.no_grad():
         cannys = batch[1].cuda()
         boneage = batch[2].cuda()
         male = batch[3].cuda()
-        # output = net(images, cannys, male)
-        output = net(images, male)
+        output = net(images, cannys, male)
+        # output = net(images, male)
         output = torch.squeeze(output)
         boneage = torch.squeeze(boneage)
         print(f"pred: {output}, \nlabel: {boneage}")
