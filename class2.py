@@ -44,7 +44,7 @@ def main(args):
     train_ori_dir = args.ori_train_path
     train_canny_dir = args.canny_train_path
     train_trans = transforms.Compose([
-        # transforms.RandomHorizontalFlip(),
+        transforms.RandomHorizontalFlip(),
         transforms.Grayscale(),
         transforms.ToTensor(),
     ])
@@ -173,9 +173,9 @@ loader = data.dataloader.DataLoader(
     drop_last=True
 )
 print("\neval=========================================================")
-for idx, patch in enumerate(loader):
-    boneage = patch[2]
-    print(f"boneage:{boneage}")
+# for idx, patch in enumerate(loader):
+#     boneage = patch[2]
+#     print(f"boneage:{boneage}")
 loss_func = nn.L1Loss(reduction="sum")
 val_length = 0.
 total_loss = 0.

@@ -43,7 +43,7 @@ def print(*arg):
     rewrite_print(*arg, file=open(filename, "a"))
 
 
-def eval_func(net, val_loader, mean, div):
+def eval_func(net, val_loader):
     # valid process
     net.eval()
     val_loss = 0.

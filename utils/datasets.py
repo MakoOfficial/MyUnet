@@ -3,6 +3,7 @@ import torch.utils.data as data
 from PIL import Image, ImageOps
 import numpy as np
 import torch
+from torch.utils.data.dataset import T_co
 from torchvision import transforms
 
 
@@ -79,6 +80,12 @@ class ClassDataset(data.Dataset):
             self.age.append(age)
             self.male.append(male)
 
+        self.ori = torch.stack(self.ori)
+        self.canny = torch.stack(self.canny)
+        self.age = torch.stack(self.age)
+        self.male = torch.stack(self.male)
+
+
     def __len__(self):
         return len(self.idList)
 
@@ -111,5 +118,30 @@ class ClassDataset(data.Dataset):
         repr = "(DatasetsForUnet,\n"
         repr += "  transform = %s,\n" % str(self.transform)
         repr += "  len = %s,\n" % str(self.__len__())
+        repr += ")"
+        return repr
+
+
+class KfoldDataset(data.Dataset):
+
+    def __init__(self, ori, canny, age, male):
+        super().__init__()
+        self.ori = ori
+        self.canny = canny
+        self.age = age
+        self.male = male
+
+    def __len__(self):
+        return self.ori.shape[0]
+
+
+    def __getitem__(self, index) -> T_co:
+        return self.ori[index], self.canny[index], self.age[index], self.male[index]
+
+    def __repr__(self):
+        repr = "(DatasetsForKFold,\n"
+        repr += "  len = %s,\n" % str(self.__len__())
+        ori, canny, age, male = self.__getitem__(0)
+        repr += f"the first line :age {age.item()}, male {male.item()}"
         repr += ")"
         return repr
