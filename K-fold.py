@@ -34,7 +34,7 @@ def run_fold(args, train_set, val_set, k):
     checkpoint_canny = torch.load(args.canny_ckpt_path)
 
     classifer = model.classifer2(checkpoint_ori, checkpoint_canny)
-    print(f'Model:\n{classifer}')
+    # print(f'Model:\n{classifer}')
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     train_loader = data.DataLoader(
@@ -65,6 +65,7 @@ def run_fold(args, train_set, val_set, k):
         classifer.train()
         total_loss = 0.
         train_length = 0.
+        classifer.train()
         for idx, batch in enumerate(train_loader):
             images = batch[0].cuda()
             cannys = batch[1].cuda()
@@ -95,6 +96,7 @@ def run_fold(args, train_set, val_set, k):
         train_record_path = os.path.join(args.save_path, f"train{k}.csv")
         train_length = 0.
         total_loss = 0.
+        classifer.eval()
         for idx, patch in enumerate(train_loader):
             train_length += patch[0].shape[0]
             images = patch[0].cuda()
@@ -107,7 +109,7 @@ def run_fold(args, train_set, val_set, k):
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
             for i in range(output.shape[0]):
-                train_record.append([boneage[i], output[i]])
+                train_record.append([boneage[i].item(), round(output[i].item(), 2)])
             assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
             loss = loss_func(output, boneage)
@@ -124,6 +126,7 @@ def run_fold(args, train_set, val_set, k):
         val_record_path = os.path.join(args.save_path, f"val{k}.csv")
         val_length = 0.
         val_loss = 0.
+        classifer.eval()
         for idx, patch in enumerate(val_loader):
             val_length += patch[0].shape[0]
             images = patch[0].cuda()
@@ -136,7 +139,7 @@ def run_fold(args, train_set, val_set, k):
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
             for i in range(output.shape[0]):
-                val_record.append([boneage[i], output[i]])
+                val_record.append([boneage[i].item(), round(output[i].item(), 2)])
             assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
             loss = loss_func(output, boneage)
