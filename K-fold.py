@@ -15,7 +15,7 @@ from utils.func import print, eval_func, normalize_age, L1_regular
 import numpy as np
 import random
 from sklearn.model_selection import KFold
-
+import time
 
 def setup_seed(seed=3407):
     random.seed(seed)  # Python的随机性
@@ -67,6 +67,7 @@ def run_fold(args, train_set, val_set, k):
         total_loss = 0.
         train_length = 0.
         classifer.train()
+        start_time = time.time()
         for idx, batch in enumerate(train_loader):
             images = batch[0].cuda()
             cannys = batch[1].cuda()
@@ -86,10 +87,11 @@ def run_fold(args, train_set, val_set, k):
             optimizer.step()
             train_length += batch[0].shape[0]
             total_loss += loss.item()
-
+        end_time = time.time()
         print(f'epoch {epoch + 1}: training loss: {round(total_loss / train_length, 3)}, '
               f'valid loss: {round(eval_func(classifer, val_loader), 3)}, '
-              f'lr:{optimizer.param_groups[0]["lr"]}')
+              f'lr:{optimizer.param_groups[0]["lr"]}'
+              f'cost time is {end_time - start_time}')
         scheduler.step()
 
     with torch.no_grad():
