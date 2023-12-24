@@ -195,21 +195,21 @@ class Ori_Embedding(nn.Module):
         # add the patch embedding
         self.downSample = nn.Sequential(
             nn.Conv2d(512, 256, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             # nn.LayerNorm((16, 16)),
             nn.ReLU(),
             nn.Conv2d(256, 1024, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(1024)
             # nn.LayerNorm((16, 16))
         )
 
         self.res = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=1, stride=2),
-            # nn.BatchNorm2d(1024)
+            nn.BatchNorm2d(1024)
             # nn.LayerNorm((16, 16))
         )
 
@@ -415,7 +415,7 @@ class Canny_Embedding2(nn.Module):
 class classifer(nn.Module):
     def __init__(self, backbone_ori, backbone_canny):
         super(classifer, self).__init__()
-        self.feature_extract_ori = Ori_Embedding(backbone_ori)
+        self.feature_extract_ori = Ori_Embedding2(backbone_ori)
         self.feature_extract_canny = Canny_Embedding(backbone_canny)
 
         self.gender_encoder = nn.Sequential(

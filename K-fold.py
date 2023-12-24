@@ -33,7 +33,8 @@ def run_fold(args, train_set, val_set, k):
     checkpoint_ori = torch.load(args.ori_ckpt_path)
     checkpoint_canny = torch.load(args.canny_ckpt_path)
 
-    classifer = model.classifer2(checkpoint_ori, checkpoint_canny)
+    # classifer = model.classifer2(checkpoint_ori, checkpoint_canny)
+    classifer = model.classifer(checkpoint_ori, checkpoint_canny)
     # print(f'Model:\n{classifer}')
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 

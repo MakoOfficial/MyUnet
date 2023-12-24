@@ -119,3 +119,6 @@ def L1_regular(net, alpha):
             loss += torch.sum(torch.abs(param))
 
     return alpha * loss
+
+
+# def mat_age(train_set, )
