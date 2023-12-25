@@ -30,7 +30,11 @@ def setup_seed(seed=3407):
 
 
 def run_fold(args, train_set, val_set, k):
+    gpus = [0, 1]
+    torch.cuda.set_device('cuda:{}'.format(gpus[0]))
     classifer = MMANet.BAA_New(32, *MMANet.get_My_resnet50())
+    classifer = classifer.cuda()
+    classifer = nn.DataParallel(classifer, device_ids=gpus, output_device=gpus[0])
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     train_loader = data.DataLoader(
@@ -55,7 +59,7 @@ def run_fold(args, train_set, val_set, k):
     print("Use step level LR & WD scheduler!")
     scheduler = StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
     print(f'Scheduler:\n{scheduler}')
-    classifer.cuda()
+
 
     for epoch in range(epochs):
         classifer.train()
@@ -69,7 +73,7 @@ def run_fold(args, train_set, val_set, k):
             male = batch[3].cuda()
             optimizer.zero_grad()
 
-            output = classifer(images, male)
+            _, _, _, output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -100,7 +104,7 @@ def run_fold(args, train_set, val_set, k):
             boneage = patch[2].cuda()
             male = patch[3].cuda()
 
-            output = classifer(images, male)
+            _, _, _, output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -129,7 +133,7 @@ def run_fold(args, train_set, val_set, k):
             boneage = patch[2].cuda()
             male = patch[3].cuda()
 
-            output = classifer(images, male)
+            _, _, _, output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -173,9 +177,11 @@ def main(args):
     for fold, (train_idx, val_idx) in enumerate(kf.split(X=X)):
         print(f"Fold {fold + 1}/5")
         ori, canny, age, male = train_dataset[train_idx]
+        ori = torch.repeat_interleave(ori, repeats=3, dim=1)
         train_set = datasets.KfoldDataset(ori, canny, age, male)
         print(train_set)
         ori1, canny1, age1, male1 = train_dataset[val_idx]
+        ori1 = torch.repeat_interleave(ori1, repeats=3, dim=1)
         val_set = datasets.KfoldDataset(ori1, canny1, age1, male1)
         print(val_set)
 

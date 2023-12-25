@@ -167,8 +167,8 @@ python K-fold-MMANet.py \
     --weight_decay 1e-4 \
     --step_size 20 \
     --gamma  0.6 \
-    --ori_train_path ../masked_4K/masked/ori \
-    --canny_train_path ../masked_4K/masked/canny 
+    --ori_train_path ../../autodl-tmp/ori \
+    --canny_train_path ../../autodl-tmp/ori 
 ```
 
 python onlyUseOri.py \

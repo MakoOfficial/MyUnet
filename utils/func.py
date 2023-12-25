@@ -85,7 +85,7 @@ def eval_func_MMANet(net, val_loader):
             images = patch[0].cuda()
             boneage = patch[2].cuda()
             male = patch[3].cuda()
-            output = net(images, male)
+            _, _, _, output = net(images, male)
 
             # output = (output.cpu() * div) + mean
             # boneage = (boneage.cpu() * div) + mean

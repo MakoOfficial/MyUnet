@@ -112,7 +112,7 @@ class ClassDataset(data.Dataset):
         return torch.Tensor(boneage), torch.Tensor(male)
 
     def __getitem__(self, index):
-        return self.ori[index], self.canny[index], self.age[index], self.male[index]
+        return (self.ori[index]), self.canny[index], self.age[index], self.male[index]
 
     def __repr__(self):
         repr = "(DatasetsForUnet,\n"
