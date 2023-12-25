@@ -161,14 +161,12 @@ python K-fold-MMANet.py \
     --batch_size 32 \
     --epochs 100 \
     --save_ckpt_freq 50 \
-    --ori_ckpt_path ./checkpoint/masked_1K_ori_200.pth \
-    --canny_ckpt_path ./checkpoint/masked_1K_canny_200.pth \
-    --lr 1e-3 \
-    --weight_decay 1e-4 \
-    --step_size 20 \
-    --gamma  0.6 \
+    --lr 5e-4 \
+    --weight_decay 0 \
+    --step_size 10 \
+    --gamma  0.5 \
     --ori_train_path ../../autodl-tmp/ori \
-    --canny_train_path ../../autodl-tmp/ori 
+    --seed 1
 ```
 
 python onlyUseOri.py \

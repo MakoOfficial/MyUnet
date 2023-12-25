@@ -1,7 +1,7 @@
 import csv
 
 import torch
-import model
+import cv2
 import os
 from torch.utils import data
 from torch.optim.lr_scheduler import StepLR
@@ -16,6 +16,55 @@ import numpy as np
 import random
 from sklearn.model_selection import KFold
 import time
+
+from albumentations.augmentations.transforms import Lambda, Normalize, RandomBrightnessContrast
+from albumentations.augmentations.geometric.transforms import ShiftScaleRotate, HorizontalFlip
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations.augmentations.crops.transforms import RandomResizedCrop
+from albumentations import Compose, OneOrOther
+
+norm_mean = [0.143]  # 0.458971
+norm_std = [0.144]  # 0.225609
+
+#   数据增强用的（本质还是正则化，增强鲁棒性），随机删除一个图片上的像素，p为执行概率，scale擦除部分占据图片比例的范围，ratio擦除部分的长宽比范围
+RandomErasing = transforms.RandomErasing(scale=(0.02, 0.08), ratio=(0.5, 2), p=0.8)
+
+
+def randomErase(image, **kwargs):
+    return RandomErasing(image)
+
+
+def sample_normalize(image, **kwargs):
+    image = image / 255
+    channel = image.shape[2]
+    #   平均值和标准差的计算，先将通道提出来，分别计算三个通道的平均值和方差
+    mean, std = image.reshape((-1, channel)).mean(axis=0), image.reshape((-1, channel)).std(axis=0)
+    return (image - mean) / (std + 1e-3)  # 1e-3:0.001,1乘以10的-3次方
+
+
+#   利用compose将多个步骤合到一起
+transform_train = Compose([
+    # RandomBrightnessContrast(p = 0.8),
+    RandomResizedCrop(512, 512, (0.5, 1.0), p=0.5),  # 512为调整后的图片大小，（0.5,1.0）为scale剪切的占比范围，概率p为0.5
+    # ShiftScaleRotate操作：仿射变换，shift为平移，scale为缩放比率，rotate为旋转角度范围，border_mode用于外推法的标记，value即为padding_value，前者用到的，p为概率
+    ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, border_mode=cv2.BORDER_CONSTANT, value=0.0,
+                     p=0.8),
+    # HorizontalFlip(p = 0.5),
+
+    # ShiftScaleRotate(shift_limit = 0.2, scale_limit = 0.2, rotate_limit=20, p = 0.8),
+    HorizontalFlip(p=0.5),  # 水平翻转
+    RandomBrightnessContrast(p=0.8, contrast_limit=(-0.3, 0.2)),  # 概率调整图片的对比度
+    Lambda(image=sample_normalize),  # 标准化
+    ToTensorV2(),  # 将图片转化为tensor类型
+    Lambda(image=randomErase)  # 做随机擦除
+
+])
+
+#   对验证集和测试集只进行了简单的normalize，然后转化为tensor
+transform_val = Compose([
+    Lambda(image=sample_normalize),
+    ToTensorV2(),
+])
 
 def setup_seed(seed=3407):
     random.seed(seed)  # Python的随机性
@@ -56,10 +105,7 @@ def run_fold(args, train_set, val_set, k):
     epochs = args.epochs
     optimizer = Adam(classifer.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    print("Use step level LR & WD scheduler!")
-    scheduler = StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-    print(f'Scheduler:\n{scheduler}')
-
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
 
     for epoch in range(epochs):
         classifer.train()
@@ -69,8 +115,8 @@ def run_fold(args, train_set, val_set, k):
         start_time = time.time()
         for idx, batch in enumerate(train_loader):
             images = batch[0].cuda()
-            boneage = batch[2].cuda()
-            male = batch[3].cuda()
+            boneage = batch[1].cuda()
+            male = batch[2].cuda()
             optimizer.zero_grad()
 
             _, _, _, output = classifer(images, male)
@@ -80,7 +126,7 @@ def run_fold(args, train_set, val_set, k):
 
             assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-4)
+            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-5)
             loss.backward()
             optimizer.step()
             train_length += batch[0].shape[0]
@@ -101,8 +147,8 @@ def run_fold(args, train_set, val_set, k):
         for idx, patch in enumerate(train_loader):
             train_length += patch[0].shape[0]
             images = patch[0].cuda()
-            boneage = patch[2].cuda()
-            male = patch[3].cuda()
+            boneage = patch[1].cuda()
+            male = patch[2].cuda()
 
             _, _, _, output = classifer(images, male)
 
@@ -130,8 +176,8 @@ def run_fold(args, train_set, val_set, k):
         for idx, patch in enumerate(val_loader):
             val_length += patch[0].shape[0]
             images = patch[0].cuda()
-            boneage = patch[2].cuda()
-            male = patch[3].cuda()
+            boneage = patch[1].cuda()
+            male = patch[2].cuda()
 
             _, _, _, output = classifer(images, male)
 
@@ -161,14 +207,8 @@ def main(args):
     df = pd.read_csv(args.csv_path)
     df, boneage_mean, boneage_div = normalize_age(df)
     train_ori_dir = args.ori_train_path
-    train_canny_dir = args.canny_train_path
-    train_trans = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.Grayscale(),
-        transforms.ToTensor(),
-    ])
-    train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir,
-                                          transform=train_trans)
+
+    train_dataset = datasets.MMANetDataset(df=df, data_dir=train_ori_dir)
     print(f'Training dataset info:\n{train_dataset}')
     data_len = train_dataset.__len__()
     X = torch.randn(data_len, 2)
@@ -176,14 +216,10 @@ def main(args):
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(X=X)):
         print(f"Fold {fold + 1}/5")
-        ori, canny, age, male = train_dataset[train_idx]
-        ori = torch.repeat_interleave(ori, repeats=3, dim=1)
-        train_set = datasets.KfoldDataset(ori, canny, age, male)
-        print(train_set)
-        ori1, canny1, age1, male1 = train_dataset[val_idx]
-        ori1 = torch.repeat_interleave(ori1, repeats=3, dim=1)
-        val_set = datasets.KfoldDataset(ori1, canny1, age1, male1)
-        print(val_set)
+        ids, age, male = train_dataset[train_idx]
+        train_set = datasets.Kfold_MMANet_Dataset(ids, age, male, train_ori_dir, transforms=transform_train)
+        ids1, age1, male1 = train_dataset[val_idx]
+        val_set = datasets.Kfold_MMANet_Dataset(ids1, age1, male1, train_ori_dir, transforms=transform_val)
 
         run_fold(args, train_set, val_set, fold+1)
     return None

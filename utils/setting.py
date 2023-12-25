@@ -73,13 +73,13 @@ def get_class_args():
     # Dataset parameters
     parser.add_argument('--csv_path', default='../archive/boneage-training-dataset.csv', type=str,
                         help='label csv path')
-    parser.add_argument('--ori_train_path', default='../masked_1K_train/ori', type=str,
+    parser.add_argument('--ori_train_path', default='../archive/masked_1K_train/ori', type=str,
                         help='origin dataset path')
-    parser.add_argument('--canny_train_path', default='../masked_1K_train/canny', type=str,
+    parser.add_argument('--canny_train_path', default='../archive/masked_1K_train/canny', type=str,
                         help='canny dataset path')
-    parser.add_argument('--ori_val_path', default='../masked_1K_val/ori', type=str,
+    parser.add_argument('--ori_val_path', default='../archive/masked_1K_val/ori', type=str,
                         help='origin valid dataset path')
-    parser.add_argument('--canny_val_path', default='../masked_1K_val/canny', type=str,
+    parser.add_argument('--canny_val_path', default='../archive/masked_1K_val/canny', type=str,
                         help='canny valid dataset path')
     parser.add_argument('--save_path', default="../../autodl-tmp/",
                         help='path where to save, empty for no saving')
