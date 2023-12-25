@@ -145,16 +145,31 @@ python K-fold.py \
     --batch_size 32 \
     --epochs 100 \
     --save_ckpt_freq 50 \
-    --ori_ckpt_path ./checkpoint/masked_1K/masked_1K_ori_200.pth \
-    --canny_ckpt_path ./checkpoint/masked_1K/masked_1K_canny_200.pth \
+    --ori_ckpt_path ./checkpoint/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K_canny_200.pth \
     --lr 1e-3 \
-    --weight_decay 1e-2 \
-    --step_size 10 \
-    --gamma  0.7 \
-    --ori_train_path ../masked_1K/ori \
-    --canny_train_path ../masked_1K/canny 
+    --weight_decay 1e-4 \
+    --step_size 20 \
+    --gamma  0.6 \
+    --ori_train_path ../masked_4K/masked/ori \
+    --canny_train_path ../masked_4K/masked/canny 
 ```
 
+# run K-fold-MMANet.py
+```bash
+python K-fold-MMANet.py \
+    --batch_size 32 \
+    --epochs 100 \
+    --save_ckpt_freq 50 \
+    --ori_ckpt_path ./checkpoint/masked_1K_ori_200.pth \
+    --canny_ckpt_path ./checkpoint/masked_1K_canny_200.pth \
+    --lr 1e-3 \
+    --weight_decay 1e-4 \
+    --step_size 20 \
+    --gamma  0.6 \
+    --ori_train_path ../masked_4K/masked/ori \
+    --canny_train_path ../masked_4K/masked/canny 
+```
 
 python onlyUseOri.py \
     --batch_size 80 \

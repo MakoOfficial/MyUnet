@@ -73,6 +73,34 @@ def eval_func(net, val_loader):
     # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length
 
+def eval_func_MMANet(net, val_loader):
+    # valid process
+    net.eval()
+    val_loss = 0.
+    val_length = 0.
+    loss_func = nn.L1Loss(reduction="sum")
+    with torch.no_grad():
+        for idx, patch in enumerate(val_loader):
+            patch_len = patch[0].shape[0]
+            images = patch[0].cuda()
+            boneage = patch[2].cuda()
+            male = patch[3].cuda()
+            output = net(images, male)
+
+            # output = (output.cpu() * div) + mean
+            # boneage = (boneage.cpu() * div) + mean
+
+            output = torch.squeeze(output)
+            boneage = torch.squeeze(boneage)
+
+            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+
+            loss = loss_func(output, boneage)
+            val_loss += loss.item()
+            val_length += patch_len
+
+    # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
+    return val_loss / val_length
 
 def eval_func_dist(net, val_loader, mean, div):
     # valid process

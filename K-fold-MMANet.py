@@ -9,9 +9,9 @@ import pandas as pd
 from torchvision import transforms
 from torch import nn
 from torch.optim import Adam
-from utils import datasets
+from utils import datasets, MMANet
 from utils.setting import get_class_args
-from utils.func import print, eval_func, normalize_age, L1_regular
+from utils.func import print, eval_func, normalize_age, L1_regular, eval_func_MMANet
 import numpy as np
 import random
 from sklearn.model_selection import KFold
@@ -30,12 +30,7 @@ def setup_seed(seed=3407):
 
 
 def run_fold(args, train_set, val_set, k):
-    checkpoint_ori = torch.load(args.ori_ckpt_path)
-    checkpoint_canny = torch.load(args.canny_ckpt_path)
-
-    # classifer = model.classifer2(checkpoint_ori, checkpoint_canny)
-    classifer = model.classifer(checkpoint_ori, checkpoint_canny)
-    # print(f'Model:\n{classifer}')
+    classifer = MMANet.BAA_New(32, *MMANet.get_My_resnet50())
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
     train_loader = data.DataLoader(
@@ -70,12 +65,11 @@ def run_fold(args, train_set, val_set, k):
         start_time = time.time()
         for idx, batch in enumerate(train_loader):
             images = batch[0].cuda()
-            cannys = batch[1].cuda()
             boneage = batch[2].cuda()
             male = batch[3].cuda()
             optimizer.zero_grad()
 
-            output = classifer(images, cannys, male)
+            output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -89,7 +83,7 @@ def run_fold(args, train_set, val_set, k):
             total_loss += loss.item()
         end_time = time.time()
         print(f'epoch {epoch + 1}: training loss: {round(total_loss / train_length, 3)}, '
-              f'valid loss: {round(eval_func(classifer, val_loader), 3)}, '
+              f'valid loss: {round(eval_func_MMANet(classifer, val_loader), 3)}, '
               f'lr:{optimizer.param_groups[0]["lr"]}'
               f'cost time is {end_time - start_time}')
         scheduler.step()
@@ -103,11 +97,10 @@ def run_fold(args, train_set, val_set, k):
         for idx, patch in enumerate(train_loader):
             train_length += patch[0].shape[0]
             images = patch[0].cuda()
-            cannys = patch[1].cuda()
             boneage = patch[2].cuda()
             male = patch[3].cuda()
 
-            output = classifer(images, cannys, male)
+            output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -133,11 +126,10 @@ def run_fold(args, train_set, val_set, k):
         for idx, patch in enumerate(val_loader):
             val_length += patch[0].shape[0]
             images = patch[0].cuda()
-            cannys = patch[1].cuda()
             boneage = patch[2].cuda()
             male = patch[3].cuda()
 
-            output = classifer(images, cannys, male)
+            output = classifer(images, male)
 
             output = torch.squeeze(output)
             boneage = torch.squeeze(boneage)
@@ -153,7 +145,7 @@ def run_fold(args, train_set, val_set, k):
             writer = csv.writer(csvfile)
             for row in val_record:
                 writer.writerow(row)
-    save_path = os.path.join(args.save_path, f"'CHECKPOINT_{k}Fold.pth'")
+    save_path = os.path.join(args.save_path, f"MMANet_{k}Fold.pth")
     torch.save(classifer, save_path)
 
 
