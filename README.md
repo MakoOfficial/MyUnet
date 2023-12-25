@@ -159,7 +159,7 @@ python K-fold.py \
 ```bash
 python K-fold-MMANet.py \
     --batch_size 32 \
-    --epochs 100 \
+    --epochs 50 \
     --save_ckpt_freq 50 \
     --lr 5e-4 \
     --weight_decay 0 \

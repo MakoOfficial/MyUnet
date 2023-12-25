@@ -114,9 +114,9 @@ def run_fold(args, train_set, val_set, k):
         classifer.train()
         start_time = time.time()
         for idx, batch in enumerate(train_loader):
-            images = batch[0].cuda()
-            boneage = batch[1].cuda()
-            male = batch[2].cuda()
+            images = batch[0].type(torch.FloatTensor).cuda()
+            boneage = batch[1].type(torch.FloatTensor).cuda()
+            male = batch[2].type(torch.FloatTensor).cuda()
             optimizer.zero_grad()
 
             _, _, _, output = classifer(images, male)
@@ -146,9 +146,9 @@ def run_fold(args, train_set, val_set, k):
         classifer.eval()
         for idx, patch in enumerate(train_loader):
             train_length += patch[0].shape[0]
-            images = patch[0].cuda()
-            boneage = patch[1].cuda()
-            male = patch[2].cuda()
+            images = patch[0].type(torch.FloatTensor).cuda()
+            boneage = patch[1].type(torch.FloatTensor).cuda()
+            male = patch[2].type(torch.FloatTensor).cuda()
 
             _, _, _, output = classifer(images, male)
 
@@ -175,9 +175,9 @@ def run_fold(args, train_set, val_set, k):
         classifer.eval()
         for idx, patch in enumerate(val_loader):
             val_length += patch[0].shape[0]
-            images = patch[0].cuda()
-            boneage = patch[1].cuda()
-            male = patch[2].cuda()
+            images = patch[0].type(torch.FloatTensor).cuda()
+            boneage = patch[1].type(torch.FloatTensor).cuda()
+            male = patch[2].type(torch.FloatTensor).cuda()
 
             _, _, _, output = classifer(images, male)
 
