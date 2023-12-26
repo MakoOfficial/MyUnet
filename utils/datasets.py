@@ -152,17 +152,17 @@ class MMANetDataset(data.Dataset):
         self.data_dir = data_dir
         self.idList = os.listdir(self.data_dir)  # 目录里的所有文件
         self.df = df    # load the dataframe from cvd file
-        self.age = []
+        self.zscore = []
         self.male = []
         self.ids = []
         # print(type(self.df['id'][0]))
         for i in range(len(self.idList)):
-            age, male = self.get_label(i)
-            self.age.append(age)
+            zscore, male = self.get_label(i)
+            self.zscore.append(zscore)
             self.male.append(male)
             # self.ids.append(int(self.idList[i]))
-        self.age = torch.stack(self.age)
-        self.male = torch.stack(self.male)
+        self.male = torch.stack(self.male).type(torch.FloatTensor)
+        self.zscore = torch.stack(self.zscore).type(torch.FloatTensor)
         # print(self.ids)
         self.ids = torch.IntTensor(self.ids)
 
@@ -175,12 +175,12 @@ class MMANetDataset(data.Dataset):
         image_id = image_index.split('.')[0]
         self.ids.append(int(image_id))
         row = self.df[self.df['id'] == int(image_id)]
-        boneage = np.array(row['zscore'])
+        zscroe = np.array(row['zscore'])
         male = np.array(row['male'].astype('float32'))
-        return torch.Tensor(boneage), torch.Tensor(male)
+        return torch.Tensor(zscroe), torch.Tensor(male)
 
     def __getitem__(self, index):
-        return self.ids[index], self.age[index], self.male[index]
+        return self.ids[index], self.zscore[index], self.male[index]
 
     def __repr__(self):
         repr = "(MMANetDataset,\n"
@@ -188,21 +188,20 @@ class MMANetDataset(data.Dataset):
         repr += ")"
         return repr
 
-
 class Kfold_MMANet_Dataset(data.Dataset):
 
-    def __init__(self, ids, age, male, data_dir, transforms):
+    def __init__(self, ids, zscore, male, data_dir, transforms):
         super().__init__()
         self.data_dir = data_dir
         self.transforms = transforms
         self.ids = ids
-        self.age = age
+        self.zscore = zscore
         self.male = male
         self.pic = []
         self.read_pic()
 
     def __len__(self):
-        return self.age.shape[0]
+        return self.zscore.shape[0]
 
     def read_pic(self):
         length = self.ids.shape[0]
@@ -214,10 +213,10 @@ class Kfold_MMANet_Dataset(data.Dataset):
             img = np.array(img.convert("RGB"))
             self.pic.append(self.transforms(image=img)['image'])
 
-        self.pic = torch.stack(self.pic)
+        self.pic = torch.stack(self.pic).type(torch.FloatTensor)
 
     def __getitem__(self, index) -> T_co:
-        return self.pic[index], self.age[index], self.male[index]
+        return (self.pic[index], self.male[index]), self.zscore[index]
 
     def __repr__(self):
         repr = "(DatasetsForKFold,\n"

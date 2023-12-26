@@ -23,6 +23,8 @@ from albumentations.pytorch.transforms import ToTensorV2
 from albumentations.augmentations.crops.transforms import RandomResizedCrop
 from albumentations import Compose, OneOrOther
 
+import torch.nn.functional as F
+
 norm_mean = [0.143]  # 0.458971
 norm_std = [0.144]  # 0.225609
 
@@ -66,34 +68,38 @@ transform_val = Compose([
     ToTensorV2(),
 ])
 
-def setup_seed(seed=3407):
-    random.seed(seed)  # Python的随机性
-    os.environ['PYTHONHASHSEED']  = str(seed)  # 设置Python哈希种子，为了禁止hash随机化，使得实验可复现
-    np.random.seed(seed)  # numpy的随机性
-    torch.manual_seed(seed)  # torch的CPU随机性，为CPU设置随机种子
-    torch.cuda.manual_seed(seed)  # torch的GPU随机性，为当前GPU设置随机种子
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.   torch的GPU随机性，为所有GPU设置随机种子
-    torch.backends.cudnn.deterministic = True  # 选择确定性算法
-    torch.backends.cudnn.benchmark = False  # if benchmark=True, deterministic will be False
-    torch.backends.cudnn.enabled = False
+
+def L1_penalty(net, alpha):
+    l1_penalty = torch.nn.L1Loss(size_average=False)
+    loss = 0
+    for param in net.module.fc.parameters():
+        loss += torch.sum(torch.abs(param))
+
+    return alpha * loss
+
+
+def seed_everything(seed=1234):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 
 def run_fold(args, train_set, val_set, k):
     gpus = [0, 1]
     torch.cuda.set_device('cuda:{}'.format(gpus[0]))
     classifer = MMANet.BAA_New(32, *MMANet.get_My_resnet50())
-    classifer = classifer.cuda()
-    classifer = nn.DataParallel(classifer, device_ids=gpus, output_device=gpus[0])
+    classifer = nn.DataParallel(classifer.cuda(), device_ids=gpus, output_device=gpus[0])
     print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
-    train_loader = data.DataLoader(
+    train_loader = torch.utils.data.DataLoader(
         dataset=train_set,
         batch_size=args.batch_size,
         shuffle=True,
         drop_last=False
     )
 
-    val_loader = data.DataLoader(
+    val_loader = torch.utils.data.DataLoader(
         dataset=val_set,
         batch_size=args.batch_size,
         shuffle=False,
@@ -108,35 +114,39 @@ def run_fold(args, train_set, val_set, k):
     scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
 
     for epoch in range(epochs):
-        classifer.train()
         total_loss = 0.
         train_length = 0.
         classifer.train()
         start_time = time.time()
-        for idx, batch in enumerate(train_loader):
-            images = batch[0].type(torch.FloatTensor).cuda()
-            boneage = batch[1].type(torch.FloatTensor).cuda()
-            male = batch[2].type(torch.FloatTensor).cuda()
+        for idx, data in enumerate(train_loader):
+            image, gender = data[0]
+            image, gender = image.cuda(), gender.cuda()
+
+            batch_size = len(data[1])
+            label = data[1].cuda()
             optimizer.zero_grad()
 
-            _, _, _, output = classifer(images, male)
+            _, _, _, y_pred = classifer(image, gender)
 
-            output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
+            y_pred = torch.squeeze(y_pred)
+            label = torch.squeeze(label)
 
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+            assert label.shape == y_pred.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage) + L1_regular(classifer, 1e-5)
-            loss.backward()
+            loss = loss_func(y_pred, label)
+            capital_loss = loss + L1_penalty(classifer, 1e-5)
+            capital_loss.backward()
             optimizer.step()
-            train_length += batch[0].shape[0]
+            train_length += batch_size
             total_loss += loss.item()
         end_time = time.time()
         print(f'epoch {epoch + 1}: training loss: {round(total_loss / train_length, 3)}, '
-              f'valid loss: {round(eval_func_MMANet(classifer, val_loader), 3)}, '
+              f'valid loss: {round(eval_func_MMANet(classifer, val_loader, boneage_mean, boneage_div), 3)}, '
               f'lr:{optimizer.param_groups[0]["lr"]}'
               f'cost time is {end_time - start_time}')
         scheduler.step()
+    save_path = os.path.join(args.save_path, f"MMANet_{k}Fold.pth")
+    torch.save(classifer, save_path)
 
     with torch.no_grad():
         train_record = [['label', 'pred']]
@@ -144,22 +154,26 @@ def run_fold(args, train_set, val_set, k):
         train_length = 0.
         total_loss = 0.
         classifer.eval()
-        for idx, patch in enumerate(train_loader):
-            train_length += patch[0].shape[0]
-            images = patch[0].type(torch.FloatTensor).cuda()
-            boneage = patch[1].type(torch.FloatTensor).cuda()
-            male = patch[2].type(torch.FloatTensor).cuda()
+        for idx, data in enumerate(train_loader):
+            image, gender = data[0]
+            image, gender = image.cuda(), gender.cuda()
 
-            _, _, _, output = classifer(images, male)
+            batch_size = len(data[1])
+            label = data[1].cuda()
+
+            _, _, _, y_pred = classifer(image, gender)
+
+            output = (y_pred.cpu() * boneage_div) + boneage_mean
+            label = (label.cpu() * boneage_div) + boneage_mean
 
             output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
+            label = torch.squeeze(label)
             for i in range(output.shape[0]):
-                train_record.append([boneage[i].item(), round(output[i].item(), 2)])
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+                train_record.append([label[i].item(), round(output[i].item(), 2)])
+            assert output.shape == label.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage)
-            total_loss += loss.item()
+            total_loss += F.l1_loss(output, label, reduction='sum').item()
+            train_length += batch_size
         print(f"length :{train_length}")
         print(f'{k} fold final training loss: {round(total_loss / train_length, 3)}')
         with open(train_record_path, 'w', newline='') as csvfile:
@@ -173,35 +187,38 @@ def run_fold(args, train_set, val_set, k):
         val_length = 0.
         val_loss = 0.
         classifer.eval()
-        for idx, patch in enumerate(val_loader):
-            val_length += patch[0].shape[0]
-            images = patch[0].type(torch.FloatTensor).cuda()
-            boneage = patch[1].type(torch.FloatTensor).cuda()
-            male = patch[2].type(torch.FloatTensor).cuda()
+        for idx, data in enumerate(val_loader):
+            image, gender = data[0]
+            image, gender = image.cuda(), gender.cuda()
 
-            _, _, _, output = classifer(images, male)
+            batch_size = len(data[1])
+            label = data[1].cuda()
+
+            _, _, _, y_pred = classifer(image, gender)
+
+            output = (y_pred.cpu() * boneage_div) + boneage_mean
+            label = (label.cpu() * boneage_div) + boneage_mean
 
             output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
+            label = torch.squeeze(label)
             for i in range(output.shape[0]):
-                val_record.append([boneage[i].item(), round(output[i].item(), 2)])
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+                val_record.append([label[i].item(), round(output[i].item(), 2)])
+            assert output.shape == label.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage)
-            val_loss += loss.item()
+            val_loss += F.l1_loss(output, label, reduction='sum').item()
+            val_length += batch_size
         print(f"length :{val_length}")
         print(f'{k} fold final val loss: {round(val_loss / val_length, 3)}')
         with open(val_record_path, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for row in val_record:
                 writer.writerow(row)
-    save_path = os.path.join(args.save_path, f"MMANet_{k}Fold.pth")
-    torch.save(classifer, save_path)
 
 
-def main(args):
+if __name__ == "__main__":
+    args = get_class_args()
     print(args)
-    setup_seed(args.seed)
+    seed_everything(args.seed)
     print(f'Set manual random seed: {args.seed}')
 
     df = pd.read_csv(args.csv_path)
@@ -211,19 +228,17 @@ def main(args):
     train_dataset = datasets.MMANetDataset(df=df, data_dir=train_ori_dir)
     print(f'Training dataset info:\n{train_dataset}')
     data_len = train_dataset.__len__()
-    X = torch.randn(data_len, 2)
+    X = torch.randn(data_len, 1)
     kf = KFold(n_splits=5, shuffle=True)
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(X=X)):
         print(f"Fold {fold + 1}/5")
-        ids, age, male = train_dataset[train_idx]
-        train_set = datasets.Kfold_MMANet_Dataset(ids, age, male, train_ori_dir, transforms=transform_train)
-        ids1, age1, male1 = train_dataset[val_idx]
-        val_set = datasets.Kfold_MMANet_Dataset(ids1, age1, male1, train_ori_dir, transforms=transform_val)
+        ids, zscore, male = train_dataset[train_idx]
+        train_set = datasets.Kfold_MMANet_Dataset(ids, zscore, male, train_ori_dir, transforms=transform_train)
+        ids1, zscore1, male1 = train_dataset[val_idx]
+        val_set = datasets.Kfold_MMANet_Dataset(ids1, zscore1, male1, train_ori_dir, transforms=transform_val)
+        torch.set_default_tensor_type('torch.FloatTensor')
 
-        run_fold(args, train_set, val_set, fold+1)
-    return None
+        run_fold(args, train_set, val_set, fold + 1)
 
 
-opt = get_class_args()
-main(opt)

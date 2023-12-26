@@ -2,6 +2,7 @@ import model
 import os
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 def get_Net(args):
@@ -73,31 +74,29 @@ def eval_func(net, val_loader):
     # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length
 
-def eval_func_MMANet(net, val_loader):
+def eval_func_MMANet(net, val_loader, mean, div):
     # valid process
     net.eval()
     val_loss = 0.
     val_length = 0.
-    loss_func = nn.L1Loss(reduction="sum")
     with torch.no_grad():
-        for idx, patch in enumerate(val_loader):
-            patch_len = patch[0].shape[0]
-            images = patch[0].type(torch.FloatTensor).cuda()
-            boneage = patch[1].type(torch.FloatTensor).cuda()
-            male = patch[2].type(torch.FloatTensor).cuda()
-            _, _, _, output = net(images, male)
+        for idx, data in enumerate(val_loader):
+            val_length += len(data[1])
+            image, gender = data[0]
+            image, gender = image.cuda(), gender.cuda()
 
-            # output = (output.cpu() * div) + mean
-            # boneage = (boneage.cpu() * div) + mean
+            label = data[1].cuda()
+            _, _, _, output = net(image, gender)
+
+            output = (output.cpu() * div) + mean
+            label = (label.cpu() * div) + mean
 
             output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
+            label = torch.squeeze(label)
 
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+            assert output.shape == label.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage)
-            val_loss += loss.item()
-            val_length += patch_len
+            val_loss += F.l1_loss(output, label, reduction='sum').item()
 
     # print(f'valid sum loss is {val_loss}\nval_length: {val_length}')
     return val_loss / val_length

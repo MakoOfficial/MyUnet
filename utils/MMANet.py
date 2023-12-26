@@ -28,20 +28,6 @@ import logging
 import matplotlib.pyplot as plt
 
 import torch.nn.functional as F
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-import torchvision.models as models
-# from tqdm.notebook import tqdm
-from tqdm import tqdm
-from sklearn.utils import shuffle
-# from apex import amp
-
-import random
-
-import time
-
-from torch.optim.lr_scheduler import StepLR
-from torch.nn.parameter import Parameter
 
 import warnings
 
@@ -50,7 +36,7 @@ from torchvision.models import resnet34, resnet50
 
 
 def get_My_resnet50():
-    model = resnet50(pretrained=True)
+    model = resnet50(pretrained=False)
     output_channels = model.fc.in_features
     model = list(model.children())[:-2]
     return model, output_channels
@@ -80,11 +66,11 @@ class Part_Relation(nn.Module):
             modules.append(nn.ReLU())
             input_channels = output_channels
 
-        #   MRA模块
         self.pooling_attention_0 = nn.Sequential(*modules)
         self.pooling_attention_1 = Pooling_attention(input_channels, 1)
         self.pooling_attention_3 = Pooling_attention(input_channels, 3)
         self.pooling_attention_5 = Pooling_attention(input_channels, 5)
+
         self.last_conv = nn.Sequential(
             nn.Conv2d(3, 1, kernel_size=1),
             nn.Sigmoid()
@@ -97,19 +83,22 @@ class Part_Relation(nn.Module):
         x = self.last_conv(x)
         return input - input * x
 
+        model = nn.Sequential(*model)
+        return model, output_channels
+
 
 class BAA_New(nn.Module):
     def __init__(self, gender_encode_length, backbone, out_channels):
         super(BAA_New, self).__init__()
-        self.backbone0 = nn.Sequential(*backbone[0:5])  # 放入主干网络这里应该是用的ResNet50，将0-4层放入sequential内
-        self.part_relation0 = Part_Relation(256)  # MMCA1，输入通道默认256
+        self.backbone0 = nn.Sequential(*backbone[0:5])
+        self.part_relation0 = Part_Relation(256)
         self.out_channels = out_channels
         self.backbone1 = backbone[5]
-        self.part_relation1 = Part_Relation(512, [4, 8], 2)  # MMCA2，输入通道512，两层DR，缩减因子分别为4和8
+        self.part_relation1 = Part_Relation(512, [4, 8], 2)
         self.backbone2 = backbone[6]
-        self.part_relation2 = Part_Relation(1024, [8, 8], 2)  # MMCA3
+        self.part_relation2 = Part_Relation(1024, [8, 8], 2)
         self.backbone3 = backbone[7]
-        self.part_relation3 = Part_Relation(2048, [8, 16], 2)  # MMCA4
+        self.part_relation3 = Part_Relation(2048, [8, 16], 2)
 
         # 3.788
         # self.part_relation0 = Part_Relation(256)
@@ -117,43 +106,36 @@ class BAA_New(nn.Module):
         # self.part_relation2 = Part_Relation(1024, 8, 2)
         # self.part_relation3 = Part_Relation(2048, 8, 2)
 
-        #   给性别编码
         self.gender_encoder = nn.Linear(1, gender_encode_length)
         self.gender_bn = nn.BatchNorm1d(gender_encode_length)
 
-        #   三个线性层，将维度从out_channels+gender_encode_length -> 1024 -> 512 -> 1
-        self.fc0 = nn.Linear(out_channels + gender_encode_length, 1024)
-        self.bn0 = nn.BatchNorm1d(1024)
+        self.fc = nn.Sequential(
+            nn.Linear(out_channels + gender_encode_length, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
 
-        self.fc1 = nn.Linear(1024, 512)
-        self.bn1 = nn.BatchNorm1d(512)
-
-        self.output = nn.Linear(512, 1)
-
-        ##MMANet总体结构从上到下：
-        # backbone 0-5 语法：nn.Sequential(*backbone[0:5])
-        # MMCA1，降维因子默认16，层数为1，输入通道256
-        # backbone[5]
-        # MMCA2，level=2，降维因子为4,8，输入通道512
-        # backbone[6]
-        # MMCA3，level=2，降维因子为8,8，输入通道为1024
-        # backbone[7]
-        # MMCA4，level=2，降维因子为8,16，输入通道为2048
-        # 然后就是给性别编码，两步：线性层+BN
-        # 最后是特征提取，三块：fc0+bn0、fc1+bn1、输出层output（Linear）
-        # ##
+        # self.fc0 = nn.Linear(out_channels + gender_encode_length, 1024)
+        # self.bn0 = nn.BatchNorm1d(1024)
+        #
+        # self.fc1 = nn.Linear(1024, 512)
+        # self.bn1 = nn.BatchNorm1d(512)
+        #
+        # self.output = nn.Linear(512, 1)
 
     def forward(self, image, gender):
-        # 注意，这其中并没有把MMCA放入到sequential中，而是作为独立出来的part_relation参加到forward中，然后内嵌backbone
         x = self.part_relation0(self.backbone0(image))
-        # x = self.backbone0(image)
+        # x  = self.backbone0(image)
         x = self.part_relation1(self.backbone1(x))
         # x = self.backbone1(x)
         x = self.part_relation2(self.backbone2(x))
         # x = self.backbone2(x)
         x = self.part_relation3(self.backbone3(x))
         # x = self.backbone3(x)
-
         feature_map = x
         x = F.adaptive_avg_pool2d(x, 1)
         x = torch.squeeze(x)
@@ -165,15 +147,90 @@ class BAA_New(nn.Module):
 
         x = torch.cat([x, gender_encode], dim=1)
 
-        x = F.relu(self.bn0(self.fc0(x)))
+        x = self.fc(x)
 
-        x = F.relu(self.bn1(self.fc1(x)))
-
-        x = self.output(x)
+        # x = F.relu(self.bn0(self.fc0(x)))
+        #
+        # x = F.relu(self.bn1(self.fc1(x)))
+        #
+        # x = self.output(x)
 
         return feature_map, gender_encode, image_feature, x
 
-    #   微调
+    def fine_tune(self, need_fine_tune=True):
+        self.train(need_fine_tune)
+
+
+class BAA_Base(nn.Module):
+    def __init__(self, gender_encode_length, backbone, out_channels):
+        super(BAA_New, self).__init__()
+        self.backbone0 = nn.Sequential(*backbone[0:5])
+        self.part_relation0 = Part_Relation(256)
+        self.out_channels = out_channels
+        self.backbone1 = backbone[5]
+        self.part_relation1 = Part_Relation(512, [4, 8], 2)
+        self.backbone2 = backbone[6]
+        self.part_relation2 = Part_Relation(1024, [8, 8], 2)
+        self.backbone3 = backbone[7]
+        self.part_relation3 = Part_Relation(2048, [8, 16], 2)
+
+        # 3.788
+        # self.part_relation0 = Part_Relation(256)
+        # self.part_relation1 = Part_Relation(512, 32)
+        # self.part_relation2 = Part_Relation(1024, 8, 2)
+        # self.part_relation3 = Part_Relation(2048, 8, 2)
+
+        self.gender_encoder = nn.Linear(1, gender_encode_length)
+        self.gender_bn = nn.BatchNorm1d(gender_encode_length)
+
+        self.fc = nn.Sequential(
+            nn.Linear(out_channels + gender_encode_length, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+
+        # self.fc0 = nn.Linear(out_channels + gender_encode_length, 1024)
+        # self.bn0 = nn.BatchNorm1d(1024)
+        #
+        # self.fc1 = nn.Linear(1024, 512)
+        # self.bn1 = nn.BatchNorm1d(512)
+        #
+        # self.output = nn.Linear(512, 1)
+
+    def forward(self, image, gender):
+        x = self.part_relation0(self.backbone0(image))
+        # x  = self.backbone0(image)
+        x = self.part_relation1(self.backbone1(x))
+        # x = self.backbone1(x)
+        x = self.part_relation2(self.backbone2(x))
+        # x = self.backbone2(x)
+        x = self.part_relation3(self.backbone3(x))
+        # x = self.backbone3(x)
+        feature_map = x
+        x = F.adaptive_avg_pool2d(x, 1)
+        x = torch.squeeze(x)
+        x = x.view(-1, self.out_channels)
+        image_feature = x
+
+        gender_encode = self.gender_bn(self.gender_encoder(gender))
+        gender_encode = F.relu(gender_encode)
+
+        x = torch.cat([x, gender_encode], dim=1)
+
+        x = self.fc(x)
+
+        # x = F.relu(self.bn0(self.fc0(x)))
+        #
+        # x = F.relu(self.bn1(self.fc1(x)))
+        #
+        # x = self.output(x)
+
+        return x
+
     def fine_tune(self, need_fine_tune=True):
         self.train(need_fine_tune)
 
@@ -217,7 +274,7 @@ class Graph_BAA(nn.Module):
     def __init__(self, backbone):
         super(Graph_BAA, self).__init__()
         self.backbone = backbone
-
+        # freeze image backbone
         for param in self.backbone.parameters():
             param.requires_grad = False
 
@@ -267,7 +324,7 @@ class Ensemble(nn.Module):
         # )
 
         self.fc = nn.Sequential(
-            nn.Linear(1024 + 2048 + 32, 512),  # Contextual+Texture+Gender
+            nn.Linear(1024 + 2048 + 32, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
 
@@ -277,7 +334,6 @@ class Ensemble(nn.Module):
     def forward(self, image, gender):
         image_feature, graph_feature, gender, result = self.model(image, gender)
         # image_feature = self.image_encoder(image_feature)
-        #   细节：还有一个+result[0]，最后除以2的操作
         if self.training:
             return (self.fc(torch.cat([image_feature, graph_feature, gender], dim=1)) + result[0]) / 2
         else:
@@ -286,4 +342,3 @@ class Ensemble(nn.Module):
     def fine_tune(self, need_fine_tune=True):
         self.train(need_fine_tune)
         self.model.eval()
-
