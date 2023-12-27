@@ -1,198 +1,378 @@
-import torch
-import model
-import os
-from torch.utils import data
-from torch.optim.lr_scheduler import StepLR
-import pandas as pd
-from torchvision import transforms
-from torch import nn
-from torch.optim import Adam
-from utils import datasets
-from utils.setting import get_class_args
-from utils.func import print, eval_func_dist, normalize_age
- 
+import csv
+import os, sys, random
 import numpy as np
+import pandas as pd
+import cv2
+
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
 import random
- 
-def setup_seed(seed=3407):
-    random.seed(seed)  # Python的随机性
-    os.environ['PYTHONHASHSEED'] = str(seed)  # 设置Python哈希种子，为了禁止hash随机化，使得实验可复现
-    np.random.seed(seed)  # numpy的随机性
-    torch.manual_seed(seed)  # torch的CPU随机性，为CPU设置随机种子
-    torch.cuda.manual_seed(seed)  # torch的GPU随机性，为当前GPU设置随机种子
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.   torch的GPU随机性，为所有GPU设置随机种子
-    torch.backends.cudnn.deterministic = True # 选择确定性算法
-    torch.backends.cudnn.benchmark = False # if benchmark=True, deterministic will be False
-    torch.backends.cudnn.enabled = False
-    
-def main(args):
-    print(args)
-    # torch.manual_seed(args.seed)
-    print(f'Set manual random seed: {args.seed}')
-    checkpoint_ori = torch.load(args.ori_ckpt_path)
-    print(f'Load MyUnet_Ori from {args.ori_ckpt_path}')
-    # checkpoint_canny = torch.load(args.canny_ckpt_path)
-    # print(f'Load MyUnet_Canny from {args.canny_ckpt_path}')
 
-    # classifer = model.classifer(checkpoint_ori, checkpoint_canny)
-    classifer = model.distillation(checkpoint_ori)
-    print(f'Model:\n{classifer}')
-    print(f'number of training params: {sum(p.numel() for p in classifer.parameters() if p.requires_grad) / 1e6} M')
 
-    df = pd.read_csv(args.csv_path)
-    df, boneage_mean, boneage_div = normalize_age(df)
-    train_ori_dir = args.ori_train_path
-    train_canny_dir = args.canny_train_path
-    train_trans = transforms.Compose([
-        # transforms.RandomHorizontalFlip(),
-        transforms.Grayscale(),
-        transforms.ToTensor(),
-    ])
+from torch.optim.lr_scheduler import StepLR
 
-    val_ori_dir = args.ori_val_path
-    val_canny_dir = args.canny_val_path
-    val_trans = transforms.Compose([
-        transforms.Grayscale(),
-        transforms.ToTensor(),
-        # transforms.Normalize([0.5,], [0.5,])
-    ])
+from albumentations.augmentations.transforms import Lambda, Normalize, RandomBrightnessContrast
+from albumentations.augmentations.geometric.transforms import ShiftScaleRotate, HorizontalFlip
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations.augmentations.crops.transforms import RandomResizedCrop
+from albumentations import Compose, OneOrOther
 
-    train_dataset = datasets.ClassDataset(df=df, ori_dir=train_ori_dir, canny_dir=train_canny_dir, transform=train_trans)
-    print(f'Training dataset info:\n{train_dataset}')
-    sampler = torch.utils.data.RandomSampler(data_source=train_dataset)
+import albumentations
 
-    val_dataset = datasets.ClassDataset(df=df, ori_dir=val_ori_dir, canny_dir=val_canny_dir, transform=val_trans)
-    print(f'Valid dataset info:\n{val_dataset}')
+import warnings
 
-    train_loader = data.dataloader.DataLoader(
-        dataset=train_dataset,
-        batch_size=args.batch_size,
-        sampler=sampler,
-        # shuffle=False,
-        drop_last=False
-    )
+import torchvision
+from torchvision import datasets
+import torchvision.transforms as transforms
+import time
+from utils.func import print
+from utils import datasets_new
+import model
 
-    val_loader = data.dataloader.DataLoader(
-        dataset=val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        drop_last=False
-    )
+warnings.filterwarnings("ignore")
 
-    num_training_steps_per_epoch = len(train_dataset) // args.batch_size
+seed = 1
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
-    print(f"LR = {args.lr}")
-    print(f"Batch size = {args.batch_size}")
-    print(f"Number of training steps = {num_training_steps_per_epoch}")
-    print(f"Number of training examples per epoch = {num_training_steps_per_epoch*args.batch_size}")
+# def seed_everything(seed=1234):
+#     random.seed(seed)
+#     os.environ['PYTHONHASHSEED'] = str(seed)
+#     np.random.seed(seed)
+#     torch.manual_seed(seed)
+# torch.cuda.manual_seed(seed)
+# torch.backends.cudnn.deterministic = True
 
-    loss_func = nn.L1Loss(reduction="sum")
-    # train_length = train_dataset.__len__()
-    epochs = args.epochs
-    optimizer = Adam(classifer.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    print("Use step level LR & WD scheduler!")
-    scheduler = StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-    print(f'Scheduler:\n{scheduler}')
-    classifer.cuda()
+norm_mean = [0.143]  # 0.458971
+norm_std = [0.144]  # 0.225609
 
-    for epoch in range(epochs):
-        # classifer.train()
-        total_loss = 0.
-        train_length = 0.
-        for idx, patch in enumerate(train_loader):
-            train_length += patch[0].shape[0]
-            images = patch[0].cuda()
-            cannys = patch[1].cuda()
-            boneage = patch[2].cuda()
-            male = patch[3].cuda()
-            optimizer.zero_grad()
+RandomErasing = transforms.RandomErasing(scale=(0.02, 0.08), ratio=(0.5, 2), p=0.8)
 
-            output = classifer(images, male)
 
-            output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
+def randomErase(image, **kwargs):
+    return RandomErasing(image)
 
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
 
-            loss = loss_func(output, boneage)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        print(f"length :{train_length}")
-        print(f'epoch {epoch+1}: training loss: {round(total_loss/train_length, 3)}, '
-              # f'valid loss: {round(eval_func_dist(classifer, val_loader, mean=boneage_mean, div=boneage_div), 3)}, '
-              f'lr:{optimizer.param_groups[0]["lr"]}')
-        scheduler.step()
-    with torch.no_grad():
-        train_length = 0.
-        total_loss = 0.
-        for idx, patch in enumerate(train_loader):
-            train_length += patch[0].shape[0]
-            images = patch[0].cuda()
-            cannys = patch[1].cuda()
-            boneage = patch[2].cuda()
-            male = patch[3].cuda()
+def sample_normalize(image, **kwargs):
+    image = image / 255
+    channel = image.shape[2]
+    mean, std = image.reshape((-1, channel)).mean(axis=0), image.reshape((-1, channel)).std(axis=0)
+    return (image - mean) / (std + 1e-3)
 
-            output = classifer(images, male)
 
-            output = torch.squeeze(output)
-            boneage = torch.squeeze(boneage)
-            print(f"pred: {output}, \nlabel: {boneage}")
-            assert output.shape == boneage.shape, "pred and output isn't the same shape"
+transform_train = Compose([
+    # RandomBrightnessContrast(p = 0.8),
+    RandomResizedCrop(512, 512, (0.5, 1.0), p=0.5),
+    ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, border_mode=cv2.BORDER_CONSTANT, value=0.0,
+                     p=0.8),
+    # HorizontalFlip(p = 0.5),
 
-            loss = loss_func(output, boneage)
-            total_loss += loss.item()
-        print(f"length :{train_length}")
-        print(f'training loss: {round(total_loss/train_length, 3)}')
-            
-    torch.save(classifer, 'CHECKPOINT_ori.pth')
-    return classifer
-            
-    
-    
-setup_seed(seed=3047)
-opt = get_class_args()
-_ = main(opt)
-classifer = torch.load('CHECKPOINT_ori.pth')
-df = pd.read_csv('../archive/boneage-training-dataset.csv')
-ori_dir = '../masked_1K_train/ori'
-canny_dir = '../masked_1K_train/canny'
-val_trans = transforms.Compose([
-    # transforms.RandomHorizontalFlip(),
-    transforms.Grayscale(),
-    transforms.ToTensor(),
+    # ShiftScaleRotate(shift_limit = 0.2, scale_limit = 0.2, rotate_limit=20, p = 0.8),
+    HorizontalFlip(p=0.5),
+    RandomBrightnessContrast(p=0.8, contrast_limit=(-0.3, 0.2)),
+    Lambda(image=sample_normalize),
+    ToTensorV2(),
+    Lambda(image=randomErase)
+
 ])
-dataset = datasets.ClassDataset(df=df, ori_dir=ori_dir, canny_dir=canny_dir, transform=val_trans)
-sampler = torch.utils.data.RandomSampler(data_source=dataset)
-loader = data.dataloader.DataLoader(
-    dataset=dataset,
-    batch_size=80,
-    # sampler=sampler,
-    shuffle=False,
-    drop_last=True
-)
-print("\neval=========================================================")
-for idx, patch in enumerate(loader):
-    boneage = patch[2]
-    print(f"boneage:{boneage}")
-loss_func = nn.L1Loss(reduction="sum")
-val_length = 0.
-total_loss = 0.
-with torch.no_grad():
-    for idx, batch in enumerate(loader):
-        val_length += batch[0].shape[0]
-        images = batch[0].cuda()
-        cannys = batch[1].cuda()
-        boneage = batch[2].cuda()
-        male = batch[3].cuda()
-        # output = net(images, cannys, male)
-        output = classifer(images, male)
-        output = torch.squeeze(output)
-        boneage = torch.squeeze(boneage)
-        print(f"pred: {output}, \nlabel: {boneage}")
-        loss = loss_func(output, boneage)
-        total_loss += loss.item()
 
-print(f'length is {val_length}')    
-print(f'loss is {round(total_loss/val_length, 3)}')
+transform_val = Compose([
+    Lambda(image=sample_normalize),
+    ToTensorV2(),
+])
+
+transform_test = Compose([
+    Lambda(image=sample_normalize),
+    ToTensorV2(),
+])
+
+
+def create_data_loader(train_df, val_df, train_root, val_root):
+    return datasets_new.BAATrainDataset(train_df, train_root, boneage_mean, boneage_div, transform_train), \
+           datasets_new.BAAValDataset(val_df, val_root, transform_val)
+
+
+def L1_penalty(net, alpha):
+    l1_penalty = torch.nn.L1Loss(size_average=False)
+    loss = 0
+    for param in net.MLP.parameters():
+        loss += torch.sum(torch.abs(param))
+
+    return alpha * loss
+
+
+def train_fn(net, train_loader, loss_fn, epoch, optimizer):
+    '''
+    checkpoint is a dict
+    '''
+    global total_size
+    global training_loss
+
+    net.train()
+    for batch_idx, data in enumerate(train_loader):
+        image, gender = data[0]
+        image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+
+        batch_size = len(data[1])
+        label = data[1].cuda()
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+        # forward
+        y_pred = net(image, gender)
+        y_pred = y_pred.squeeze()
+        label = label.squeeze()
+        print(y_pred)
+        # print(y_pred, label)
+        loss = loss_fn(y_pred, label)
+        # backward,calculate gradients
+        total_loss = loss + L1_penalty(net, 1e-5)
+        total_loss.backward()
+        # backward,update parameter
+        optimizer.step()
+        batch_loss = loss.item()
+
+        training_loss += batch_loss
+        total_size += batch_size
+    return training_loss / total_size
+
+
+def evaluate_fn(net, val_loader):
+    net.eval()
+
+    global mae_loss
+    global val_total_size
+    with torch.no_grad():
+        for batch_idx, data in enumerate(val_loader):
+            val_total_size += len(data[1])
+
+            image, gender = data[0]
+            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+
+            label = data[1].cuda()
+
+            y_pred = net(image, gender)
+            # y_pred = net(image, gender)
+            y_pred = (y_pred.cpu() * boneage_div) + boneage_mean
+            label = label.cpu()
+
+            y_pred = y_pred.squeeze()
+            label = label.squeeze()
+
+            batch_loss = F.l1_loss(y_pred, label, reduction='sum').item()
+            # print(batch_loss/len(data[1]))
+            mae_loss += batch_loss
+    return mae_loss
+
+
+def reduce_fn(vals):
+    return sum(vals)
+
+
+import time
+
+
+def map_fn(flags, data_dir, k):
+    model_name = f'rsa50_fold{k}'
+    # path = f'{root}/{model_name}_fold{k}'
+    # Sets a common random seed - both for initialization and ensuring graph is the same
+    # seed_everything(seed=flags['seed'])
+
+    # Acquires the (unique) Cloud TPU core corresponding to this process's index
+    # gpus = [0, 1]
+    # torch.cuda.set_device('cuda:{}'.format(gpus[0]))
+
+    #   mymodel = BAA_base(32)
+    mymodel = model.distillation(torch.load('./checkpoint/masked_1K/masked_1K_ori_200.pth')).cuda()
+    #   mymodel.load_state_dict(torch.load('/content/drive/My Drive/BAA/resnet50_pr_2/best_resnet50_pr_2.bin'))
+    # mymodel = nn.DataParallel(mymodel.cuda(), device_ids=gpus, output_device=gpus[0])
+
+    fold_path = os.path.join(data_dir, f'fold_{k}')
+    train_df = pd.read_csv(os.path.join(fold_path, 'train.csv'))
+    val_df = pd.read_csv(os.path.join(fold_path, 'valid.csv'))
+
+    train_set, val_set = create_data_loader(train_df, val_df, os.path.join(fold_path, 'train'),
+                                            os.path.join(fold_path, 'valid'))
+    print(train_set.__len__())
+    # Creates dataloaders, which load data in batches
+    # Note: test loader is not shuffled or sampled
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
+        batch_size=flags['batch_size'],
+        shuffle=True,
+        num_workers=flags['num_workers'],
+        drop_last=True)
+
+    val_loader = torch.utils.data.DataLoader(
+        val_set,
+        batch_size=flags['batch_size'],
+        shuffle=False,
+        num_workers=flags['num_workers'])
+
+    ## Network, optimizer, and loss function creation
+
+    # Creates AlexNet for 10 classes
+    # Note: each process has its own identical copy of the model
+    #  Even though each model is created independently, they're also
+    #  created in the same way.
+
+    global best_loss
+    best_loss = float('inf')
+    #   loss_fn =  nn.MSELoss(reduction = 'sum')
+    loss_fn = nn.L1Loss(reduction='sum')
+    lr = flags['lr']
+
+    wd = 0
+
+    optimizer = torch.optim.Adam(mymodel.parameters(), lr=lr, weight_decay=wd)
+    #   optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay = wd)
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+
+    ## Trains
+    for epoch in range(flags['num_epochs']):
+        global training_loss
+        training_loss = torch.tensor([0], dtype=torch.float32)
+        global total_size
+        total_size = torch.tensor([0], dtype=torch.float32)
+
+        global mae_loss
+        mae_loss = torch.tensor([0], dtype=torch.float32)
+        global val_total_size
+        val_total_size = torch.tensor([0], dtype=torch.float32)
+
+        start_time = time.time()
+        train_fn(mymodel, train_loader, loss_fn, epoch, optimizer)
+
+        ## Evaluation
+        # Sets net to eval and no grad context
+        evaluate_fn(mymodel, val_loader)
+
+        scheduler.step()
+
+        train_loss, val_mae = training_loss / total_size, mae_loss / val_total_size
+        print(
+            f'training loss is {train_loss}, val loss is {val_mae}, time : {time.time() - start_time}, lr:{optimizer.param_groups[0]["lr"]}')
+
+    torch.save(mymodel.state_dict(), '/'.join([save_path, f'{model_name}.bin']))
+    # if use multi-gpu
+    # torch.save(mymodel.module.state_dict(), '/'.join([save_path, f'{model_name}.bin']))
+
+    # save log
+    with torch.no_grad():
+        train_record = [['label', 'pred']]
+        train_record_path = os.path.join(save_path, f"train{k}.csv")
+        train_length = 0.
+        total_loss = 0.
+        mymodel.eval()
+        for idx, data in enumerate(train_loader):
+            image, gender = data[0]
+            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+
+            batch_size = len(data[1])
+            label = data[1].cuda()
+
+            y_pred = mymodel(image, gender)
+
+            output = (y_pred.cpu() * boneage_div) + boneage_mean
+            label = (label.cpu() * boneage_div) + boneage_mean
+
+            output = torch.squeeze(output)
+            label = torch.squeeze(label)
+            for i in range(output.shape[0]):
+                train_record.append([label[i].item(), round(output[i].item(), 2)])
+            assert output.shape == label.shape, "pred and output isn't the same shape"
+
+            total_loss += F.l1_loss(output, label, reduction='sum').item()
+            train_length += batch_size
+        print(f"length :{train_length}")
+        print(f'{k} fold final training loss: {round(total_loss / train_length, 3)}')
+        with open(train_record_path, 'w', newline='') as csvfile:
+            writer_train = csv.writer(csvfile)
+            for row in train_record:
+                writer_train.writerow(row)
+
+    with torch.no_grad():
+        val_record = [['label', 'pred']]
+        val_record_path = os.path.join(save_path, f"val{k}.csv")
+        val_length = 0.
+        val_loss = 0.
+        mymodel.eval()
+        for idx, data in enumerate(val_loader):
+            image, gender = data[0]
+            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+
+            batch_size = len(data[1])
+            label = data[1].cuda()
+
+            y_pred = mymodel(image, gender)
+
+            output = (y_pred.cpu() * boneage_div) + boneage_mean
+            label = label.cpu()
+
+            output = torch.squeeze(output)
+            label = torch.squeeze(label)
+            for i in range(output.shape[0]):
+                val_record.append([label[i].item(), round(output[i].item(), 2)])
+            assert output.shape == label.shape, "pred and output isn't the same shape"
+
+            val_loss += F.l1_loss(output, label, reduction='sum').item()
+            val_length += batch_size
+        print(f"length :{val_length}")
+        print(f'{k} fold final val loss: {round(val_loss / val_length, 3)}')
+        with open(val_record_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for row in val_record:
+                writer.writerow(row)
+
+
+if __name__ == "__main__":
+    from model import BAA_New, get_My_resnet50
+    from utils import datasets, func
+    from sklearn.model_selection import KFold
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model_type')
+    parser.add_argument('lr', type=float)
+    parser.add_argument('batch_size', type=int)
+    parser.add_argument('num_epochs', type=int)
+    parser.add_argument('seed', type=int)
+    args = parser.parse_args()
+    save_path = '../../autodl-tmp/distillation'
+    os.makedirs(save_path, exist_ok=True)
+
+    prime_time = time.time()
+
+    model = BAA_New(32, *get_My_resnet50())
+
+    flags = {}
+    flags['lr'] = args.lr
+    flags['batch_size'] = args.batch_size
+    flags['num_workers'] = 2
+    flags['num_epochs'] = args.num_epochs
+    flags['seed'] = args.seed
+
+    train_df = pd.read_csv(f'../archive/boneage-training-dataset.csv')
+    boneage_mean = train_df['boneage'].mean()
+    boneage_div = train_df['boneage'].std()
+    train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
+    # train_ori_dir = '../archive/masked_1K_fold/'
+    print(f'fold 1/5')
+    map_fn(flags, data_dir=train_ori_dir, k=1)
+    print(f'fold 2/5')
+    map_fn(flags, data_dir=train_ori_dir, k=2)
+    print(f'fold 3/5')
+    map_fn(flags, data_dir=train_ori_dir, k=3)
+    print(f'fold 4/5')
+    map_fn(flags, data_dir=train_ori_dir, k=4)
+    print(f'fold 5/5')
+    map_fn(flags, data_dir=train_ori_dir, k=5)
+
+    end_time = time.time()
+
+    print(f'Summary time is {round((prime_time - end_time) / 3600, 1)}')

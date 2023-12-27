@@ -471,21 +471,21 @@ class distillation(nn.Module):
     def __init__(self, backbone):
         super(distillation, self).__init__()
         # ori branch
-        self.feature_extract_ori = Ori_Embedding(backbone)
+        self.feature_extract_ori = Ori_Embedding2(backbone)
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
-            # nn.BatchNorm1d(32),
+            nn.BatchNorm1d(32),
             # nn.LayerNorm(32),
             nn.ReLU()
         )
 
         self.MLP = nn.Sequential(
             nn.Linear(1024 + 32, 512),
-            # nn.BatchNorm1d(1024),
-            # nn.ReLU(),
-            # nn.Linear(1024, 512),
-            # nn.BatchNorm1d(512),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
             # nn.LayerNorm(512),
             nn.ReLU(),
             nn.Linear(512, 1)
