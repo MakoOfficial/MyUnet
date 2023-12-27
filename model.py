@@ -482,9 +482,9 @@ class distillation(nn.Module):
 
         self.MLP = nn.Sequential(
             nn.Linear(1024 + 32, 512),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
+            # nn.BatchNorm1d(1024),
+            # nn.ReLU(),
+            # nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             # nn.LayerNorm(512),
             nn.ReLU(),

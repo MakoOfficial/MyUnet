@@ -60,8 +60,8 @@ def randomErase(image, **kwargs):
 
 def sample_normalize(image, **kwargs):
     image = image / 255
-    channel = image.shape[2]
-    mean, std = image.reshape((-1, channel)).mean(axis=0), image.reshape((-1, channel)).std(axis=0)
+    # channel = image.shape[2]
+    mean, std = image.reshape((-1, 1)).mean(axis=0), image.reshape((-1, 1)).std(axis=0)
     return (image - mean) / (std + 1e-3)
 
 
@@ -82,11 +82,6 @@ transform_train = Compose([
 ])
 
 transform_val = Compose([
-    Lambda(image=sample_normalize),
-    ToTensorV2(),
-])
-
-transform_test = Compose([
     Lambda(image=sample_normalize),
     ToTensorV2(),
 ])
@@ -331,7 +326,7 @@ def map_fn(flags, data_dir, k):
 
 
 if __name__ == "__main__":
-    from model import BAA_New, get_My_resnet50
+    # from model import BAA_New, get_My_resnet50
     from utils import datasets, func
     from sklearn.model_selection import KFold
     import argparse
@@ -348,8 +343,6 @@ if __name__ == "__main__":
 
     prime_time = time.time()
 
-    model = BAA_New(32, *get_My_resnet50())
-
     flags = {}
     flags['lr'] = args.lr
     flags['batch_size'] = args.batch_size
@@ -360,8 +353,8 @@ if __name__ == "__main__":
     train_df = pd.read_csv(f'../archive/boneage-training-dataset.csv')
     boneage_mean = train_df['boneage'].mean()
     boneage_div = train_df['boneage'].std()
-    train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
-    # train_ori_dir = '../archive/masked_1K_fold/'
+    # train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
+    train_ori_dir = '../archive/masked_1K_fold/'
     print(f'fold 1/5')
     map_fn(flags, data_dir=train_ori_dir, k=1)
     print(f'fold 2/5')
