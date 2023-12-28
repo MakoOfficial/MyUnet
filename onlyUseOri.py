@@ -122,7 +122,7 @@ def train_fn(net, train_loader, loss_fn, epoch, optimizer):
         y_pred = net(image, gender)
         y_pred = y_pred.squeeze()
         label = label.squeeze()
-        print(y_pred)
+        # print(y_pred)
         # print(y_pred, label)
         loss = loss_fn(y_pred, label)
         # backward,calculate gradients
@@ -173,7 +173,7 @@ import time
 
 
 def map_fn(flags, data_dir, k):
-    model_name = f'rsa50_fold{k}'
+    model_name = f'vit_fold{k}'
     # path = f'{root}/{model_name}_fold{k}'
     # Sets a common random seed - both for initialization and ensuring graph is the same
     # seed_everything(seed=flags['seed'])
@@ -183,7 +183,7 @@ def map_fn(flags, data_dir, k):
     # torch.cuda.set_device('cuda:{}'.format(gpus[0]))
 
     #   mymodel = BAA_base(32)
-    mymodel = model.distillation(torch.load('./checkpoint/masked_1K/masked_1K_ori_200.pth')).cuda()
+    mymodel = model.classsifer_Vit()
     #   mymodel.load_state_dict(torch.load('/content/drive/My Drive/BAA/resnet50_pr_2/best_resnet50_pr_2.bin'))
     # mymodel = nn.DataParallel(mymodel.cuda(), device_ids=gpus, output_device=gpus[0])
 
@@ -353,8 +353,8 @@ if __name__ == "__main__":
     train_df = pd.read_csv(f'../archive/boneage-training-dataset.csv')
     boneage_mean = train_df['boneage'].mean()
     boneage_div = train_df['boneage'].std()
-    # train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
-    train_ori_dir = '../archive/masked_1K_fold/'
+    train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
+    # train_ori_dir = '../archive/masked_1K_fold/'
     print(f'fold 1/5')
     map_fn(flags, data_dir=train_ori_dir, k=1)
     print(f'fold 2/5')

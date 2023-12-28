@@ -564,3 +564,28 @@ class classifer2(nn.Module):
         feature_fusion = torch.cat((feature_ori, feature_canny, gender_encode), dim=1)  # 1024+2048+32
         # print(feature_fusion.shape)
         return self.MLP(feature_fusion)
+
+
+class classsifer_Vit(nn.Module):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.vit = Vit(input_size=512, patch_size=32, in_chans=3)
+
+        self.gender_encoder = nn.Sequential(
+            nn.Linear(1, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU()
+        )
+
+        self.MLP = nn.Sequential(
+            nn.Linear(1024+32, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+
+    def forward(self, x, gender):
+        x = self.vit(x)
+        gender_encode = self.gender_encoder(gender)
+
+        return self.MLP(torch.cat((x, gender_encode), dim=-1))
