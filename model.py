@@ -297,8 +297,8 @@ class Ori_Embedding2(nn.Module):
         self.feature_extract.append(backbone.max_pool)
         self.feature_extract.append(backbone.conv5)
 
-        for param in self.feature_extract.parameters():
-            param.requires_grad = False
+        # for param in self.feature_extract.parameters():
+        #     param.requires_grad = False
 
         self.residual = nn.Sequential(
             BTNK1(512, 1024, 2),
@@ -482,11 +482,7 @@ class distillation(nn.Module):
 
         self.MLP = nn.Sequential(
             nn.Linear(1024 + 32, 512),
-            # nn.BatchNorm1d(1024),
-            # nn.ReLU(),
-            # nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
-            # nn.LayerNorm(512),
             nn.ReLU(),
             nn.Linear(512, 1)
         )

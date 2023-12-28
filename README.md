@@ -180,6 +180,10 @@ python onlyUseOri.py \
     --step_size 30 \
     --gamma  0.5
 
+```bash
+python onlyUseOri.py 5e-4 128 100 1
+```
+
 python onlyUseCanny.py \
     --batch_size 80 \
     --epochs 100 \

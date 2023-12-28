@@ -173,7 +173,7 @@ import time
 
 
 def map_fn(flags, data_dir, k):
-    model_name = f'distillation_fold{k}'
+    model_name = f'vit_fold{k}'
     # path = f'{root}/{model_name}_fold{k}'
     # Sets a common random seed - both for initialization and ensuring graph is the same
     # seed_everything(seed=flags['seed'])
@@ -183,7 +183,7 @@ def map_fn(flags, data_dir, k):
     # torch.cuda.set_device('cuda:{}'.format(gpus[0]))
 
     #   mymodel = BAA_base(32)
-    mymodel = model.distillation(torch.load('./checkpoint/masked_1K/masked_1K_ori_200.pth')).cuda()
+    mymodel = model.Vit(input_size=512, patch_size=32, in_chans=3)
     #   mymodel.load_state_dict(torch.load('/content/drive/My Drive/BAA/resnet50_pr_2/best_resnet50_pr_2.bin'))
     # mymodel = nn.DataParallel(mymodel.cuda(), device_ids=gpus, output_device=gpus[0])
 
@@ -332,12 +332,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('model_type')
     parser.add_argument('lr', type=float)
     parser.add_argument('batch_size', type=int)
     parser.add_argument('num_epochs', type=int)
     parser.add_argument('seed', type=int)
     args = parser.parse_args()
-    save_path = '../../autodl-tmp/distillation_wo_pre'
+    save_path = '../../autodl-tmp/distillation'
     os.makedirs(save_path, exist_ok=True)
 
     prime_time = time.time()
