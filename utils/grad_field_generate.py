@@ -98,8 +98,8 @@ def extract_files(source_folder, total_folder, destination_folder):
 
 
 # 用法示例
-source_folder = '../../autodl-tmp/masked_4K_fold/'  # 源文件夹路径
-total_folder = "../archive/boneage-training-dataset"  # 总文件夹路径
-destination_folder = '../../autodl-tmp/grad_4K_fold/'  # 目标文件夹路径
+source_folder = '../../../autodl-tmp/masked_4K_fold/'  # 源文件夹路径
+total_folder = "../../archive/boneage-training-dataset"  # 总文件夹路径
+destination_folder = '../../../autodl-tmp/grad_4K_fold/'  # 目标文件夹路径
 
 extract_files(source_folder, total_folder, destination_folder)

@@ -249,7 +249,7 @@ def evaluate_fn(net, val_loader):
 
             label = data[1].cuda()
 
-            y_pred = net(image, gender)
+            y_pred = net(image, grad, gender)
             # y_pred = net(image, gender)
             y_pred = (y_pred.cpu() * boneage_div) + boneage_mean
             label = label.cpu()
@@ -280,7 +280,7 @@ def map_fn(flags, data_dir, grad_dir, k):
     # gpus = [0, 1]
     # torch.cuda.set_device('cuda:{}'.format(gpus[0]))
 
-    mymodel = ResNet(32, *get_My_resnet50()).cuda()
+    mymodel = fusion_ori_grad().cuda()
     #   mymodel.load_state_dict(torch.load('/content/drive/My Drive/BAA/resnet50_pr_2/best_resnet50_pr_2.bin'))
     # mymodel = nn.DataParallel(mymodel.cuda(), device_ids=gpus, output_device=gpus[0])
 
@@ -426,7 +426,7 @@ def map_fn(flags, data_dir, grad_dir, k):
 
 
 if __name__ == "__main__":
-    from model import ResNet, get_My_resnet50
+    from grad_field import fusion_ori_grad
     import argparse
 
     parser = argparse.ArgumentParser()
