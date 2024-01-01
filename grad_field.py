@@ -151,7 +151,7 @@ class fusion_ori_grad(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.oriEmbed = ResNet50(start_channels=3)
-        self.gradEmbed = ResNet50(start_channels=8)
+        # self.gradEmbed = ResNet50(start_channels=8)
 
         self.gender_encoder = nn.Sequential(
             nn.Linear(1, 32),
@@ -159,19 +159,27 @@ class fusion_ori_grad(nn.Module):
             nn.ReLU()
         )
 
+        # self.MLP = nn.Sequential(
+        #     nn.Linear(2048+32, 1024),
+        #     nn.BatchNorm1d(1024),
+        #     nn.ReLU(),
+        #     nn.Linear(1024, 1)
+        # )
+
         self.MLP = nn.Sequential(
-            nn.Linear(2048+32, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(1024 + 32, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Linear(1024, 1)
+            nn.Linear(512, 1)
         )
 
     def forward(self, ori, grad, gender):
         ori_feature = self.oriEmbed(ori)
-        grad_feature = self.gradEmbed(grad)
+        # grad_feature = self.gradEmbed(grad)
         gender_encode = self.gender_encoder(gender)
 
-        return self.MLP(torch.cat((ori_feature, grad_feature, gender_encode), dim=-1))
+        # return self.MLP(torch.cat((ori_feature, grad_feature, gender_encode), dim=-1))
+        return self.MLP(torch.cat((ori_feature, gender_encode), dim=-1))
 
 
 
