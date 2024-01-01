@@ -3,15 +3,44 @@ import os, sys, random
 import numpy as np
 import pandas as pd
 import cv2
+import shutil
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
+from torchvision import transforms
+from torch import Tensor
+
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.dataloader import _utils
+
+from random import choice
+
+from skimage import io
+from PIL import Image, ImageOps
+
+import glob
+
+# from torchsummary import summary
+import logging
+
+import matplotlib.pyplot as plt
+
+import torch.nn.functional as F
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+import torchvision.models as models
+# from tqdm.notebook import tqdm
+from tqdm import tqdm
+from sklearn.utils import shuffle
+# from apex import amp
+
 import random
 
+import time
 
 from torch.optim.lr_scheduler import StepLR
+from torch.nn.parameter import Parameter
 
 from albumentations.augmentations.transforms import Lambda, Normalize, RandomBrightnessContrast
 from albumentations.augmentations.geometric.transforms import ShiftScaleRotate, HorizontalFlip
@@ -28,8 +57,6 @@ from torchvision import datasets
 import torchvision.transforms as transforms
 import time
 from utils.func import print
-from utils import datasets_new
-import model
 
 warnings.filterwarnings("ignore")
 
@@ -49,15 +76,6 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-# def seed_everything(seed=1234):
-#     random.seed(seed)
-#     os.environ['PYTHONHASHSEED'] = str(seed)
-#     np.random.seed(seed)
-#     torch.manual_seed(seed)
-# torch.cuda.manual_seed(seed)
-# torch.backends.cudnn.deterministic = True
-
-
 norm_mean = [0.143]  # 0.458971
 norm_std = [0.144]  # 0.225609
 
@@ -70,8 +88,8 @@ def randomErase(image, **kwargs):
 
 def sample_normalize(image, **kwargs):
     image = image / 255
-    # channel = image.shape[2]
-    mean, std = image.reshape((-1, 1)).mean(axis=0), image.reshape((-1, 1)).std(axis=0)
+    channel = image.shape[2]
+    mean, std = image.reshape((-1, channel)).mean(axis=0), image.reshape((-1, channel)).std(axis=0)
     return (image - mean) / (std + 1e-3)
 
 
@@ -96,16 +114,85 @@ transform_val = Compose([
     ToTensorV2(),
 ])
 
+transform_grad = Compose([
+    Lambda(image=sample_normalize),
+    ToTensorV2(),
+])
 
-def create_data_loader(train_df, val_df, train_root, val_root):
-    return datasets_new.BAATrainDataset(train_df, train_root, boneage_mean, boneage_div, transform_train), \
-           datasets_new.BAAValDataset(val_df, val_root, transform_val)
+
+def read_image(path):
+    img = Image.open(path)
+    return np.array(img.convert("RGB"))
+
+def read_grad(path):
+    img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    return img.reshape((8, 512, 512)).transpose(1, 2, 0)
+
+
+class BAATrainDataset(Dataset):
+    def __init__(self, df, file_path, grad_path):
+        def preprocess_df(df):
+            # nomalize boneage distribution
+            df['zscore'] = df['boneage'].map(lambda x: (x - boneage_mean) / boneage_div)
+            # change the type of gender, change bool variable to float32
+            df['male'] = df['male'].astype('float32')
+            df['bonage'] = df['boneage'].astype('float32')
+            return df
+
+        self.df = preprocess_df(df)
+        self.file_path = file_path
+        self.grad_path = grad_path
+
+    def __getitem__(self, index):
+        row = self.df.iloc[index]
+        num = int(row['id'])
+        return (transform_train(image=read_image(f"{self.file_path}/{num}.png"))['image'],
+                transform_grad(image=read_grad(f"{self.grad_path}/{num}.png"))['image'],
+                Tensor([row['male']])), row['zscore']
+
+    def __len__(self):
+        return len(self.df)
+
+
+class BAAValDataset(Dataset):
+    def __init__(self, df, file_path, grad_path):
+        def preprocess_df(df):
+            # change the type of gender, change bool variable to float32
+            df['male'] = df['male'].astype('float32')
+            df['bonage'] = df['boneage'].astype('float32')
+            return df
+
+        self.df = preprocess_df(df)
+        self.file_path = file_path
+        self.grad_path = grad_path
+
+    def __getitem__(self, index):
+        row = self.df.iloc[index]
+        return (transform_val(image=read_image(f"{self.file_path}/{int(row['id'])}.png"))['image'],
+                transform_grad(image=read_grad(f"{self.grad_path}/{int(row['id'])}.png"))['image'],
+                Tensor([row['male']])), row['boneage']
+
+    def __len__(self):
+        return len(self.df)
+
+
+def create_data_loader(train_df, val_df, train_root, train_grad, val_root, val_grad):
+    return BAATrainDataset(train_df, train_root, train_grad), BAAValDataset(val_df, val_root, val_grad)
 
 
 def L1_penalty(net, alpha):
     l1_penalty = torch.nn.L1Loss(size_average=False)
     loss = 0
     for param in net.MLP.parameters():
+        loss += torch.sum(torch.abs(param))
+
+    return alpha * loss
+
+
+def L1_penalty_multi(net, alpha):
+    l1_penalty = torch.nn.L1Loss(size_average=False)
+    loss = 0
+    for param in net.module.fc.parameters():
         loss += torch.sum(torch.abs(param))
 
     return alpha * loss
@@ -120,8 +207,9 @@ def train_fn(net, train_loader, loss_fn, epoch, optimizer):
 
     net.train()
     for batch_idx, data in enumerate(train_loader):
-        image, gender = data[0]
-        image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+        image, grad, gender = data[0]
+        image, grad, gender = image.type(torch.FloatTensor).cuda(), grad.type(
+            torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
 
         batch_size = len(data[1])
         label = data[1].cuda()
@@ -129,10 +217,9 @@ def train_fn(net, train_loader, loss_fn, epoch, optimizer):
         # zero the parameter gradients
         optimizer.zero_grad()
         # forward
-        y_pred = net(image, gender)
+        y_pred = net(image, grad, gender)
         y_pred = y_pred.squeeze()
         label = label.squeeze()
-        # print(y_pred)
         # print(y_pred, label)
         loss = loss_fn(y_pred, label)
         # backward,calculate gradients
@@ -156,8 +243,9 @@ def evaluate_fn(net, val_loader):
         for batch_idx, data in enumerate(val_loader):
             val_total_size += len(data[1])
 
-            image, gender = data[0]
-            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+            image, grad, gender = data[0]
+            image, grad, gender = image.type(torch.FloatTensor).cuda(), grad.type(
+                torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
 
             label = data[1].cuda()
 
@@ -182,8 +270,8 @@ def reduce_fn(vals):
 import time
 
 
-def map_fn(flags, data_dir, k):
-    model_name = f'distillation_fold{k}'
+def map_fn(flags, data_dir, grad_dir, k):
+    model_name = f'resnet50_fold{k}'
     # path = f'{root}/{model_name}_fold{k}'
     # Sets a common random seed - both for initialization and ensuring graph is the same
     # seed_everything(seed=flags['seed'])
@@ -192,17 +280,17 @@ def map_fn(flags, data_dir, k):
     # gpus = [0, 1]
     # torch.cuda.set_device('cuda:{}'.format(gpus[0]))
 
-    #   mymodel = BAA_base(32)
-    mymodel = model.distillation(torch.load('./checkpoint/masked_1K/masked_1K_ori_200.pth')).cuda()
+    mymodel = ResNet(32, *get_My_resnet50()).cuda()
     #   mymodel.load_state_dict(torch.load('/content/drive/My Drive/BAA/resnet50_pr_2/best_resnet50_pr_2.bin'))
     # mymodel = nn.DataParallel(mymodel.cuda(), device_ids=gpus, output_device=gpus[0])
 
     fold_path = os.path.join(data_dir, f'fold_{k}')
+    grad_path = os.path.join(grad_dir, f'fold_{k}')
     train_df = pd.read_csv(os.path.join(fold_path, 'train.csv'))
     val_df = pd.read_csv(os.path.join(fold_path, 'valid.csv'))
 
-    train_set, val_set = create_data_loader(train_df, val_df, os.path.join(fold_path, 'train'),
-                                            os.path.join(fold_path, 'valid'))
+    train_set, val_set = create_data_loader(train_df, val_df, os.path.join(fold_path, 'train'), os.path.join(grad_path, 'train'),
+                                            os.path.join(fold_path, 'valid'), os.path.join(grad_path, 'valid'))
     print(train_set.__len__())
     # Creates dataloaders, which load data in batches
     # Note: test loader is not shuffled or sampled
@@ -275,13 +363,14 @@ def map_fn(flags, data_dir, k):
         total_loss = 0.
         mymodel.eval()
         for idx, data in enumerate(train_loader):
-            image, gender = data[0]
-            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+            image, grad, gender = data[0]
+            image, grad, gender = image.type(torch.FloatTensor).cuda(), grad.type(
+                torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
 
             batch_size = len(data[1])
             label = data[1].cuda()
 
-            y_pred = mymodel(image, gender)
+            y_pred = mymodel(image, grad, gender)
 
             output = (y_pred.cpu() * boneage_div) + boneage_mean
             label = (label.cpu() * boneage_div) + boneage_mean
@@ -308,13 +397,14 @@ def map_fn(flags, data_dir, k):
         val_loss = 0.
         mymodel.eval()
         for idx, data in enumerate(val_loader):
-            image, gender = data[0]
-            image, gender = image.type(torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
+            image, grad, gender = data[0]
+            image, grad, gender = image.type(torch.FloatTensor).cuda(), grad.type(
+                torch.FloatTensor).cuda(), gender.type(torch.FloatTensor).cuda()
 
             batch_size = len(data[1])
             label = data[1].cuda()
 
-            y_pred = mymodel(image, gender)
+            y_pred = mymodel(image, grad, gender)
 
             output = (y_pred.cpu() * boneage_div) + boneage_mean
             label = label.cpu()
@@ -336,9 +426,7 @@ def map_fn(flags, data_dir, k):
 
 
 if __name__ == "__main__":
-    # from model import BAA_New, get_My_resnet50
-    from utils import datasets, func
-    from sklearn.model_selection import KFold
+    from model import ResNet, get_My_resnet50
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -347,10 +435,8 @@ if __name__ == "__main__":
     parser.add_argument('num_epochs', type=int)
     parser.add_argument('seed', type=int)
     args = parser.parse_args()
-    save_path = '../../autodl-tmp/distillation_wo_pre'
+    save_path = '../../autodl-tmp/fusion_ori_grad'
     os.makedirs(save_path, exist_ok=True)
-
-    prime_time = time.time()
 
     flags = {}
     flags['lr'] = args.lr
@@ -363,18 +449,15 @@ if __name__ == "__main__":
     boneage_mean = train_df['boneage'].mean()
     boneage_div = train_df['boneage'].std()
     train_ori_dir = '../../autodl-tmp/masked_4K_fold/'
+    grad_dir = '../../autodl-tmp/grad_4K_fold/'
     # train_ori_dir = '../archive/masked_1K_fold/'
     print(f'fold 1/5')
-    map_fn(flags, data_dir=train_ori_dir, k=1)
+    map_fn(flags, data_dir=train_ori_dir, grad_dir=grad_dir, k=1)
     print(f'fold 2/5')
-    map_fn(flags, data_dir=train_ori_dir, k=2)
+    map_fn(flags, data_dir=train_ori_dir, grad_dir=grad_dir, k=2)
     print(f'fold 3/5')
-    map_fn(flags, data_dir=train_ori_dir, k=3)
+    map_fn(flags, data_dir=train_ori_dir, grad_dir=grad_dir, k=3)
     print(f'fold 4/5')
-    map_fn(flags, data_dir=train_ori_dir, k=4)
+    map_fn(flags, data_dir=train_ori_dir, grad_dir=grad_dir, k=4)
     print(f'fold 5/5')
-    map_fn(flags, data_dir=train_ori_dir, k=5)
-
-    end_time = time.time()
-
-    print(f'Summary time is {round((prime_time - end_time) / 3600, 1)}')
+    map_fn(flags, data_dir=train_ori_dir, grad_dir=grad_dir, k=5)
